@@ -1,18 +1,5 @@
-segment .data
-
-	fmt	db	0x1b, "[2J","%s", 0
-	clear	db	0x1b, "[2J", 0
-	board	db	0x1b, "[f" 
-		db	"  ----------------------------", 10
-		db	"  |                          |", 10
-		db	"  |                          | Score: %d%d", 10
-		db	"  |                          | Timer: %d       ", 10
-		db	"  |                          |", 10
-		db	"  |                          |", 10
-		db	"  |                          |", 10
-		db	"  |                          |", 10
-		db	"  ----------------------------", 10
-		db	0
+;%define	PADLEFT	"     "
+;%define CLEARRIGHT	0x1b, "[K"
 
 segment .bss
 
@@ -24,16 +11,17 @@ asm_main:
 	mov		ebp, esp
 	; ********** CODE STARTS HERE **********
 
-	push	clear
-	call	printf
-	add	esp, 4
+	call	clearscreen
 
-	mov	ecx, 100000
-	doit:
-		push	100
-		call	random
-		add	esp, 4
-
+	call	drawboard
+;	mov	ecx, 1000
+;	doit:
+;		push	100
+;		call	random
+;		add	esp, 4
+;
+;		call	homecursor
+;
 ;		push	ecx
 ;		xor	edx, edx
 ;		mov	ebx, 10
@@ -43,13 +31,8 @@ asm_main:
 ;		push	board
 ;		call	printf
 ;		add	esp, 12
-
-		push	board
-		push	fmt
-		call	printf
-		add	esp, 8
-
-		loop	doit
+;
+;		loop	doit
 	
 
 	; *********** CODE ENDS HERE ***********
@@ -57,6 +40,85 @@ asm_main:
 	mov		esp, ebp
 	pop		ebp
 	ret
+
+
+; drawboard()
+;
+; Draw the playing board
+
+
+segment .data
+
+boardstr	db	10
+		db	"         DOWN       FIELD POS     YARDS TO GO    ", 10
+		db	"         ----       ---------     -----------    ", 10
+		db	"                                                 ", 10
+		db	"                                                 ", 10
+		db	"         HOME      TIME REMAIN      VISITOR      ", 10
+		db	"         ----      -----------      -------      ", 10
+		db	"                                                 ", 10
+		db	"                                                 ", 10
+		db	"   ||---------------------------------------||   ", 10
+		db	"   ||   |   |   |   |   |   |   |   |   |   ||   ", 10
+		db	"\  ||---|---|---|---|---|---|---|---|---|---|| / ", 10
+		db	" | ||   |   |   |   |   |   |   |   |   |   || | ", 10
+		db	"/  ||---|---|---|---|---|---|---|---|---|---|| \ ", 10
+		db	"   ||   |   |   |   |   |   |   |   |   |   ||   ", 10
+		db	"   ||---------------------------------------||   ", 10
+		db	10
+		db	10
+		db	10
+		db	0
+
+drawboard:
+	enter	0, 0
+	call	homecursor
+	push	boardstr
+	call	printf
+	add	esp, 4
+	leave
+	ret
+
+;
+; clearscreen()
+;
+; Clear the screen
+
+segment .data
+
+	clearstr	db	0x1b, "[2J", 0
+
+clearscreen:
+	enter	0, 0
+
+	push	clearstr
+	call	printf
+	add	esp, 4
+
+	leave
+	ret
+
+
+;
+; homecursor()
+;
+; Home the cursor
+
+segment .data
+
+	homestr	db	0x1b, "[f", 0
+
+homecursor:
+	enter	0, 0
+
+	push	homestr
+	call	printf
+	add	esp, 4
+
+	leave
+	ret
+
+
 
 
 ;
