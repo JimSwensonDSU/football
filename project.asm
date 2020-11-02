@@ -1,6 +1,8 @@
 ;%define	PADLEFT	"     "
 ;%define CLEARRIGHT	0x1b, "[K"
 
+segment .data
+
 segment .bss
 
 segment .text
@@ -11,34 +13,42 @@ asm_main:
 	mov		ebp, esp
 	; ********** CODE STARTS HERE **********
 
-	call	clearscreen
-
-	call	drawboard
-;	mov	ecx, 1000
-;	doit:
-;		push	100
-;		call	random
-;		add	esp, 4
-;
-;		call	homecursor
-;
-;		push	ecx
-;		xor	edx, edx
-;		mov	ebx, 10
-;		div	ebx
-;		push	eax
-;		push	edx
-;		push	board
-;		call	printf
-;		add	esp, 12
-;
-;		loop	doit
-	
+	call	newgame
 
 	; *********** CODE ENDS HERE ***********
 	mov		eax, 0
 	mov		esp, ebp
 	pop		ebp
+	ret
+
+; newgame()
+;
+; Local vars:
+;
+; LOCAL_DOWN
+; LOCAL_FIELDPOS
+; LOCAL_YARDSTOGO
+; LOCAL_HOME
+; LOCAL_TIME
+; LOCAL_VISITOR
+; LOCAL_QUARTER
+; LOCAL_PLAYER_LOC_X
+; LOCAL_PLAYER_LOC_Y
+; LOCAL_DEFENDER1_LOC_X
+; LOCAL_DEFENDER1_LOC_Y
+; LOCAL_DEFENDER2_LOC_X
+; LOCAL_DEFENDER2_LOC_Y
+; LOCAL_DEFENDER3_LOC_X
+; LOCAL_DEFENDER3_LOC_Y
+; LOCAL_DEFENDER4_LOC_X
+; LOCAL_DEFENDER4_LOC_Y
+; LOCAL_DEFENDER5_LOC_X
+; LOCAL_DEFENDER5_LOC_Y
+newgame:
+	enter	0, 0
+	call	clearscreen
+	call	drawboard
+	leave
 	ret
 
 
@@ -50,14 +60,6 @@ asm_main:
 segment .data
 
 boardstr	db	10
-		db	"         DOWN       FIELD POS     YARDS TO GO    ", 10
-		db	"         ----       ---------     -----------    ", 10
-		db	"                                                 ", 10
-		db	"                                                 ", 10
-		db	"         HOME      TIME REMAIN      VISITOR      ", 10
-		db	"         ----      -----------      -------      ", 10
-		db	"                                                 ", 10
-		db	"                                                 ", 10
 		db	"   ||---------------------------------------||   ", 10
 		db	"   ||   |   |   |   |   |   |   |   |   |   ||   ", 10
 		db	"\  ||---|---|---|---|---|---|---|---|---|---|| / ", 10
@@ -68,7 +70,18 @@ boardstr	db	10
 		db	10
 		db	10
 		db	10
+		db	"         DOWN       FIELD POS     YARDS TO GO    ", 10
+		db	"         ----       ---------     -----------    ", 10
+		db	"                                                 ", 10
+		db	"                                                 ", 10
+		db	"         HOME      TIME REMAIN      VISITOR      ", 10
+		db	"         ----      -----------      -------      ", 10
+		db	"                                                 ", 10
+		db	"                                                 ", 10
 		db	0
+
+
+
 
 drawboard:
 	enter	0, 0
