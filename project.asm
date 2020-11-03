@@ -22,6 +22,7 @@
 %define F_SETFL		4
 
 %define TICK		100000	; 1/10th of a second
+%define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
 
 
 segment .data
@@ -30,6 +31,22 @@ segment .data
 segment .bss
 	save_termios	resb	60
 	save_c_lflag	resb	4
+
+	; game state
+	down		resd	1
+	fieldpos	resd	1
+	yardstogo	resd	1
+	homescore	resd	1
+	visitorscore	resd	1
+	quarter		resd	1
+	timeremaining	resd	1
+	direction	resd	1	; 1 = right, -1 = left
+
+	playrunning	resd	1	; 1 = yes, 0 = no
+	lineofscrimmage	resd	1
+
+	; counters
+	timer_counter	resd	1
 
 segment .text
 	global  asm_main
@@ -45,28 +62,6 @@ asm_main:
 
 	call	terminal_raw_mode
 	call	newgame
-
-	loop:
-
-	push	TICK
-	call	usleep
-	add	esp, 4
-
-	call	nonblocking_getchar
-	cmp	al, 'q'
-	je	done
-
-	cmp	al, -1
-	je	loop
-
-	push	eax
-	push	fmt
-	call	printf
-	add	esp, 8
-	jmp	loop
-
-	done:
-
 	call	terminal_restore_mode
 
 	; *********** CODE ENDS HERE ***********
@@ -79,36 +74,156 @@ asm_main:
 ;
 ; newgame()
 ;
-; Local vars:
-;
-; LOCAL_DOWN
-; LOCAL_FIELDPOS
-; LOCAL_YARDSTOGO
-; LOCAL_HOME
-; LOCAL_TIME
-; LOCAL_VISITOR
-; LOCAL_QUARTER
-; LOCAL_PLAYER_LOC_X
-; LOCAL_PLAYER_LOC_Y
-; LOCAL_DEFENDER1_LOC_X
-; LOCAL_DEFENDER1_LOC_Y
-; LOCAL_DEFENDER2_LOC_X
-; LOCAL_DEFENDER2_LOC_Y
-; LOCAL_DEFENDER3_LOC_X
-; LOCAL_DEFENDER3_LOC_Y
-; LOCAL_DEFENDER4_LOC_X
-; LOCAL_DEFENDER4_LOC_Y
-; LOCAL_DEFENDER5_LOC_X
-; LOCAL_DEFENDER5_LOC_Y
-
 newgame:
 	enter	0, 0
+	call	initgame
 	call	clearscreen
 	call	drawboard
+
+	eventloop:
+		call	drawboard
+
+		push	TICK
+		call	usleep
+		add	esp, 4
+
+		call	check_for_input
+
+		call	decrement_timeremaining
+
+		jmp	eventloop
+
+
 	leave
 	ret
 ;
 ;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void initgame()
+;
+; Initialize all settings for a new game.
+;
+initgame:
+	enter	0, 0
+
+	mov	DWORD [down], 1
+	mov	DWORD [fieldpos], 20
+	mov	DWORD [yardstogo], 10
+	mov	DWORD [homescore], 0
+	mov	DWORD [visitorscore], 0
+	mov	DWORD [quarter], 1
+	mov	DWORD [timeremaining], 150
+
+	mov	DWORD [playrunning], 0
+	mov	DWORD [lineofscrimmage], 20
+
+	mov	DWORD [direction], 1
+
+	mov	DWORD [timer_counter], TIMER_COUNTER
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void decrement_timeremaining()
+;
+; Decrement the game clock
+;
+decrement_timeremaining:
+	enter	0, 0
+
+	cmp	DWORD [playrunning], 0
+	je	leave_decrement_timeremaining
+
+	dec	DWORD [timer_counter]
+	jnz	leave_decrement_timeremaining
+	mov	DWORD [timer_counter], TIMER_COUNTER
+
+	cmp	DWORD [timeremaining], 0
+	je	leave_decrement_timeremaining
+	dec	DWORD [timeremaining]
+
+	leave_decrement_timeremaining:
+	leave
+	ret
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+check_for_input:
+	enter	0, 0
+
+	call	get_key
+	cmp	al, -1
+	je	leave_check_for_input
+
+	; Got some input
+
+	check_w:
+	cmp	al, 'w'
+	jne	check_s
+	mov	DWORD [playrunning], 1
+	jmp	leave_check_for_input
+
+	check_s:
+	cmp	al, 's'
+	jne	check_d
+	mov	DWORD [playrunning], 1
+	jmp	leave_check_for_input
+
+	check_d:
+	cmp	al, 'd'
+	jne	check_a
+	push	1
+	call	update_fieldpos
+	add	esp, 4
+	mov	DWORD [playrunning], 1
+	jmp	leave_check_for_input
+
+	check_a:
+	cmp	al, 'a'
+	jne	leave_check_for_input
+	push	-1
+	call	update_fieldpos
+	add	esp, 4
+	mov	DWORD [playrunning], 1
+	jmp	leave_check_for_input
+
+
+	leave_check_for_input:
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+update_fieldpos:
+	enter	0, 0
+
+	push	eax
+
+	mov	eax, DWORD [direction]
+	mul	DWORD [ebp + 8]
+	add	eax, DWORD [fieldpos]
+
+	cmp	eax, DWORD [lineofscrimmage]
+	jl	leave_update_fieldpos
+
+	cmp	eax, 100
+	jg	leave_update_fieldpos
+
+	mov	DWORD [fieldpos], eax
+
+	leave_update_fieldpos:
+	pop	eax
+
+	leave
+	ret
+
 
 ;------------------------------------------------------------------------------
 ;
@@ -129,23 +244,108 @@ boardstr	db	10
 		db	"   ---------------------------------------------    ", 10
 		db	10
 		db	"   ---------------------------------------------    ", 10
-		db	"   | DOWN: 9 | FIELDPOS: 99> | YARDS TO GO: 99 |    ", 10
+		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"   | HOME: 99 | VISITOR: 99 |                       ", 10
+		db	"   | HOME: %d%d | VISITOR: %d%d |                       ", 10
 		db	"   -------------------------------------            ", 10
-		db	"   | QUARTER: 9 | TIME REMAINING: 99.9 |            ", 10
+		db	"   | QUARTER: %d | TIME REMAINING: %d%d.%d |            ", 10
 		db	"   -------------------------------------            ", 10
 		db	0
 
-
-
-
 drawboard:
 	enter	0, 0
+
+	push	eax
+	push	ebx
+	push	edx
+
 	call	homecursor
+
+	mov	ebx, 10
+
+	; time remaining
+	xor	edx, edx
+	mov	eax, DWORD [timeremaining]
+	div	ebx
+	push	edx
+	xor	edx, edx
+	div	ebx
+	push	edx
+	push	eax
+
+	; quarter
+	push	DWORD [quarter]
+
+	; visitor score
+	xor	edx, edx
+	mov	eax, DWORD [visitorscore]
+	div	ebx
+	push	edx
+	push	eax
+
+	; home score
+	xor	edx, edx
+	mov	eax, DWORD [homescore]
+	div	ebx
+	push	edx
+	push	eax
+
+	; yards to go
+	xor	edx, edx
+	mov	eax, DWORD [yardstogo]
+	div	ebx
+	push	edx
+	push	eax
+
+	; field position
+	xor	edx, edx
+	mov	eax, DWORD [fieldpos]
+	cmp	eax, 50
+	je	side_midfield
+	jl	side_offense
+	jg	side_defense
+
+	side_midfield:
+	push	' '
+	jmp	pushfield
+
+	side_offense:
+	cmp	DWORD [direction], 0
+	jl	side_offense_2
+	side_offense_1:
+	push	'<'
+	jmp	pushfield
+	side_offense_2:
+	push	'>'
+	jmp	pushfield
+
+	side_defense:
+	neg	eax
+	add	eax, 100
+	cmp	DWORD [direction], 0
+	jl	side_defense_2
+	side_defense_1:
+	push	'>'
+	jmp	pushfield
+	side_defense_2:
+	push	'<'
+	jmp	pushfield
+
+	pushfield:
+	div	ebx
+	push	edx
+	push	eax
+
+	; down
+	push	DWORD [down]
+
 	push	boardstr
 	call	printf
-	add	esp, 4
+	add	esp, 60
+
+	pop	edx
+	pop	ebx
+	pop	eax
 	leave
 	ret
 ;
@@ -257,13 +457,13 @@ random:
 
 ;------------------------------------------------------------------------------
 ;
-; char nonblocking_getchar()
+; char get_key()
 ;
 ; Reads STDIN for a single character input.
 ; Returns: read character on success.
 ;          otherwise, -1
 ;
-nonblocking_getchar:
+get_key:
 	enter	8, 0
 
 	; [ebp - 4] : Save STDIN flags
