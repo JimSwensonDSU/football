@@ -1,4 +1,3 @@
-;%define	PADLEFT	"     "
 ;%define CLEARRIGHT	0x1b, "[K"
 
 segment .data
