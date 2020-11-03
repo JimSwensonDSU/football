@@ -1,18 +1,73 @@
 ;%define CLEARRIGHT	0x1b, "[K"
 
+;
+; Defines used throughout
+;
+%define	SYS_read	0x03
+%define SYS_write	0x04
+%define	SYS_open	0x05
+%define	SYS_close	0x06
+
+%define STDIN		0
+%define STDOUT		1
+
+%define	O_RDONLY	0
+%define O_NONBLOCK	2048
+
+%define	ECHO		8
+%define ICANNON		2
+%define	TCSAFLUSH	2
+
+%define F_GETFL		3
+%define F_SETFL		4
+
+%define TICK		100000	; 1/10th of a second
+
+
 segment .data
+	fmt	db	"Read >%c<", 10, 0
 
 segment .bss
+	save_termios	resb	60
+	save_c_lflag	resb	4
 
 segment .text
 	global  asm_main
+	extern	fcntl
+	extern	getchar
+	extern	usleep
+	extern  tcsetattr, tcgetattr
 
 asm_main:
 	push	ebp
 	mov		ebp, esp
 	; ********** CODE STARTS HERE **********
 
+	call	terminal_raw_mode
 	call	newgame
+
+	loop:
+
+	push	TICK
+	call	usleep
+	add	esp, 4
+
+	call	nonblocking_getchar
+	cmp	al, 'q'
+	je	done
+
+	cmp	al, -1
+	je	loop
+
+	push	eax
+	push	fmt
+	call	printf
+	add	esp, 8
+	jmp	loop
+
+	done:
+
+	call	terminal_restore_mode
 
 	; *********** CODE ENDS HERE ***********
 	mov		eax, 0
@@ -20,6 +75,8 @@ asm_main:
 	pop		ebp
 	ret
 
+;------------------------------------------------------------------------------
+;
 ; newgame()
 ;
 ; Local vars:
@@ -43,15 +100,19 @@ asm_main:
 ; LOCAL_DEFENDER4_LOC_Y
 ; LOCAL_DEFENDER5_LOC_X
 ; LOCAL_DEFENDER5_LOC_Y
+
 newgame:
 	enter	0, 0
 	call	clearscreen
 	call	drawboard
 	leave
 	ret
+;
+;------------------------------------------------------------------------------
 
-
-; drawboard()
+;------------------------------------------------------------------------------
+;
+; void drawboard()
 ;
 ; Draw the playing board
 
@@ -87,9 +148,12 @@ drawboard:
 	add	esp, 4
 	leave
 	ret
-
 ;
-; clearscreen()
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void clearscreen()
 ;
 ; Clear the screen
 
@@ -108,8 +172,9 @@ clearscreen:
 	ret
 
 
+;------------------------------------------------------------------------------
 ;
-; homecursor()
+; void homecursor()
 ;
 ; Home the cursor
 
@@ -126,21 +191,14 @@ homecursor:
 
 	leave
 	ret
-
-
-
-
 ;
-; int random(unsigned int x)
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; unsigned int random(unsigned int x)
 ;
 ; Returns: A random number between 0 and x-1
-
-%define	SYS_read	0x03
-%define	SYS_open	0x05
-%define	SYS_close	0x06
-
-%define	READ_ONLY	0
-
 
 segment .data
 
@@ -158,7 +216,7 @@ random:
 	mov	eax, SYS_open
 	mov	ebx, urandom
 	mov	ecx, 0
-	mov	edx, READ_ONLY
+	mov	edx, O_RDONLY
 	int	0x80
 
 	; eax = file descriptor
@@ -194,9 +252,139 @@ random:
 	leave
 
 	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; char nonblocking_getchar()
+;
+; Reads STDIN for a single character input.
+; Returns: read character on success.
+;          otherwise, -1
+;
+nonblocking_getchar:
+	enter	8, 0
+
+	; [ebp - 4] : Save STDIN flags
+	; [ebp - 8] : Read char
+
+	; single int used to hold flags
+	; single character (aligned to 4 bytes) return
+	sub		esp, 8
+
+	; get current stdin flags
+	; flags = fcntl(stdin, F_GETFL, 0)
+	push	0
+	push	F_GETFL
+	push	STDIN
+	call	fcntl
+	add	esp, 12
+
+	mov	DWORD [ebp-4], eax	; save flags
+
+	; set non-blocking mode on stdin
+	; fcntl(stdin, F_SETFL, flags | O_NONBLOCK)
+	push	DWORD [ebp - 4]
+	or	DWORD [esp], O_NONBLOCK
+	push	F_SETFL
+	push	STDIN
+	call	fcntl
+	add	esp, 12
+
+	call	getchar
+	mov	DWORD [ebp - 8], eax
+
+	; restore flags
+	; fcntl(stdin, F_SETFL, flags)
+	push	DWORD [ebp - 4]
+	push	F_SETFL
+	push	STDIN
+	call	fcntl
+	add	esp, 12
+
+	mov	eax, DWORD [ebp-8]
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void terminal_raw_mode()
+;
+; Put terminal into raw mode - disable ECHO and ICANON
+;
+terminal_raw_mode:
+	enter	0, 0
+
+	push	eax
+
+	; get the current stdin struct termios
+	; tcgetattr(STDIN_FILENO, &orig_termios);
+	push	save_termios	; address of struct termios
+	push	STDIN
+	call	tcgetattr
+	add	esp, 8
+
+	; save the c_lflag element of struct termios for later restoration
+	mov	eax, DWORD [save_termios + 12]
+	mov	DWORD [save_c_lflag], eax
 
 
-; printf(char *format, ...)
+	; disable ECHO and ICANON
+	; tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+	mov	eax, 0xffffffff
+	xor	eax, ECHO
+	xor	eax, ICANNON
+	and	DWORD [save_termios + 12], eax
+	push	save_termios	; address of struct termios
+	push	TCSAFLUSH
+	push	STDIN
+	call	tcsetattr
+	add	esp, 12
+
+	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void terminal_restore_mode()
+;
+; Restore original terminal settings.
+;
+terminal_restore_mode:
+	enter	0, 0
+
+	push	eax
+
+	; restore the c_lflag element of struct termios
+	mov	eax, DWORD [save_c_lflag]
+	mov	DWORD [save_termios + 12], eax
+
+	; restore term settings to original
+	; tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+	push	save_termios	; address of struct termios
+	push	TCSAFLUSH
+	push	STDIN
+	call	tcsetattr
+	add	esp, 12
+
+	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void printf(char *format, ...)
 ;
 ; A simple implementation of printf(), supporting the following:
 ;
@@ -305,7 +493,7 @@ powers db 0x00,0x00,0x00,0x00,0x40,0x22,0x8a,0x09,0x7a,0xc4,0x86,0x5a,0xa8,0x4c,
 
 printf:
 
-	enter	16,0
+	enter	16, 0
 	pushf
 	pusha
 
@@ -378,8 +566,8 @@ printf:
 
 	; print a character
 	printf_char:
-		mov	eax, 4		; 4 = SYS_WRITE
-		mov	ebx, 1		; 1 = stdout
+		mov	eax, SYS_write	; syscall
+		mov	ebx, STDOUT	; fd
 		mov	ecx, edi	; edi points to the char
 		mov	edx, 1		; length 1
 		int	0x80
@@ -403,8 +591,8 @@ printf:
 
 		pop	edi		; restore edi
 
-		mov	eax, 4		; 4 = SYS_WRITE
-		mov	ebx, 1		; 1 = stdout
+		mov	eax, SYS_write
+		mov	ebx, STDOUT
 		mov	ecx, [edi]	; point to string to print
 		int	0x80
 
@@ -414,8 +602,8 @@ printf:
 
 	; print character at esi
 	printf_char_literal:
-		mov	eax, 4		; 4 = SYS_WRITE
-		mov	ebx, 1		; 1 = stdout
+		mov	eax, SYS_write	; syscall
+		mov	ebx, STDOUT	; fd
 		mov	ecx, esi	; esi points to the char
 		mov	edx, 1		; length 1
 		int	0x80
@@ -475,8 +663,8 @@ printf:
 
 		; For negative, print out a minus sign and convert to a positive for printing
 		mov	BYTE LOCAL_OUTC, '-'	;  outchar = '-'
-		mov	eax, 4		; 4 = SYS_WRITE
-		mov	ebx, 1		; 1 = stdout
+		mov	eax, SYS_write	; syscall
+		mov	ebx, STDOUT	; fd
 		lea	ecx, LOCAL_OUTC	; outchar
 		mov	edx, 1		; length = 1
 		int	0x80
@@ -616,8 +804,8 @@ printf:
 			printf_int_output:
 			push	ecx		; save ecx (pointer into the powers of 10)
 
-			mov	eax, 4		; 4 = SYS_WRITE
-			mov	ebx, 1		; 1 = stdout
+			mov	eax, SYS_write	; syscall
+			mov	ebx, STDOUT	; fd
 			lea	ecx, LOCAL_OUTC	; outchar
 			mov	edx, 1		; length = 1
 			int	0x80
@@ -641,8 +829,8 @@ printf:
 		cmp	BYTE LOCAL_PRTG, 0	; printing == 0
 		jne	printf_toploop
 
-		mov	eax, 4		; 4 = SYS_WRITE
-		mov	ebx, 1		; 1 = stdout
+		mov	eax, SYS_write	; syscall
+		mov	ebx, STDOUT	; fd
 		lea	ecx, LOCAL_OUTC	; outchar
 		mov	edx, 1		; length = 1
 		int	0x80
@@ -655,3 +843,5 @@ printf:
 	popf
 	leave
 	ret
+;
+;------------------------------------------------------------------------------
