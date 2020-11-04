@@ -642,6 +642,8 @@ segment .data
 touchdownstr	db	10
 		db	10
 		db	10
+		db	10
+		db	10
 		db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -                               -   -||  / ", 10
@@ -668,6 +670,8 @@ drawtouchdown:
 segment .data
 
 tacklestr	db	10
+		db	10
+		db	10
 		db	10
 		db	10
 		db	"   ---------------------------------------------    ", 10
@@ -700,6 +704,8 @@ segment .data
 boardstr	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
 		db	"                                                    ", 10
+		db	"   --------------                 --------------    ", 10
+		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
@@ -710,8 +716,6 @@ boardstr	db	"                                                    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
-		db	"   --------------                 --------------    ", 10
 		db	"                                                    ", 10
 		db	"   INPUTS  Movement: wasd                           ", 10
 		db	"               Kick: k (only on 4th down)           ", 10
@@ -785,19 +789,6 @@ drawboard:
 	push	DWORD [playrunning]
 	push	DWORD [tackle]
 
-	; time remaining
-	xor	edx, edx
-	mov	eax, DWORD [timeremaining]
-	div	ebx
-	push	edx
-	xor	edx, edx
-	div	ebx
-	push	edx
-	push	eax
-
-	; quarter
-	push	DWORD [quarter]
-
 	; yards to go
 	push_yards_to_go:
 	xor	edx, edx
@@ -847,6 +838,20 @@ drawboard:
 
 	; down
 	push	DWORD [down]
+
+	; time remaining
+	xor	edx, edx
+	mov	eax, DWORD [timeremaining]
+	div	ebx
+	push	edx
+	xor	edx, edx
+	div	ebx
+	push	edx
+	push	eax
+
+	; quarter
+	push	DWORD [quarter]
+
 
 	; visitor score
 	xor	edx, edx
@@ -921,7 +926,7 @@ calc_player_offset:
 	push	ebx
 	push	edx
 
-	; Offset to offense position is 225 + Y*106 + X*4
+	; Offset to offense position is 335 + Y*106 + X*4
 	mov	eax, DWORD [ebp + 12]
 	mov	ebx, 106
 	mul	ebx
@@ -931,7 +936,7 @@ calc_player_offset:
 	mov	ebx, 4
 	mul	ebx
 	add	eax, DWORD [ebp - 4]
-	add	eax, 225
+	add	eax, 335
 
 	pop	edx
 	pop	ebx
