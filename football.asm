@@ -21,8 +21,8 @@
 %define F_GETFL		3
 %define F_SETFL		4
 
-%define	OFFENSE_CHAR	'O'	; characters for offensive player
-%define	DEFENSE_CHAR	'X'	; characters for defensive players
+%define	OFFENSE_CHAR	'O'	; character for offensive player
+%define	DEFENSE_CHAR	'X'	; character for defensive players
 %define	FIELDPOS	20	; starting field position
 %define	GAME_TIME	150	; length of a quarter
 %define TICK		100000	; 1/10th of a second
