@@ -31,8 +31,9 @@
 segment .data
 
 segment .bss
-	save_termios	resb	60
-	save_c_lflag	resb	4
+	save_termios		resb	60
+	save_c_lflag		resb	4
+	save_stdin_flags	resb	4
 
 	; game state
 	gameover	resd	1
@@ -1037,50 +1038,26 @@ random:
 ;          otherwise, -1
 ;
 get_key:
-	enter	8, 0
+	enter	4, 0
 
-	; [ebp - 4] : Save STDIN flags
-	; [ebp - 8] : Read char
+	; [ebp - 4] : Read char
 
-	; single int used to hold flags
-	; single character (aligned to 4 bytes) return
-	sub		esp, 8
-
-	; get current stdin flags
-	; flags = fcntl(stdin, F_GETFL, 0)
-	push	0
-	push	F_GETFL
-	push	STDIN
-	call	fcntl
-	add	esp, 12
-
-	mov	DWORD [ebp-4], eax	; save flags
-
-	; set non-blocking mode on stdin
-	; fcntl(stdin, F_SETFL, flags | O_NONBLOCK)
-	push	DWORD [ebp - 4]
-	or	DWORD [esp], O_NONBLOCK
-	push	F_SETFL
-	push	STDIN
-	call	fcntl
-	add	esp, 12
+	push	ebx
+	push	ecx
+	push	edx
 
 	; Read 1 byte from stdin
 	mov	eax, SYS_read
 	mov	ebx, STDIN
-	lea	ecx, [ebp - 8]
+	lea	ecx, [ebp - 4]
 	mov	edx, 1
 	int	0x80
 
-	; restore flags
-	; fcntl(stdin, F_SETFL, flags)
-	push	DWORD [ebp - 4]
-	push	F_SETFL
-	push	STDIN
-	call	fcntl
-	add	esp, 12
+	mov	eax, DWORD [ebp - 4]
 
-	mov	eax, DWORD [ebp-8]
+	pop	edx
+	pop	ecx
+	pop	ebx
 
 	leave
 	ret
@@ -1092,6 +1069,7 @@ get_key:
 ; void terminal_raw_mode()
 ;
 ; Put terminal into raw mode - disable ECHO and ICANON
+; Set STDIN to non-blocking reads.
 ;
 terminal_raw_mode:
 	enter	0, 0
@@ -1122,6 +1100,24 @@ terminal_raw_mode:
 	call	tcsetattr
 	add	esp, 12
 
+	; get current stdin flags
+	; flags = fcntl(stdin, F_GETFL, 0)
+	push	0
+	push	F_GETFL
+	push	STDIN
+	call	fcntl
+	add	esp, 12
+	mov	DWORD [save_stdin_flags], eax	; save flags
+
+	; set non-blocking mode on stdin
+	; fcntl(stdin, F_SETFL, flags | O_NONBLOCK)
+	push	DWORD [save_stdin_flags]
+	or	DWORD [esp], O_NONBLOCK
+	push	F_SETFL
+	push	STDIN
+	call	fcntl
+	add	esp, 12
+
 	pop	eax
 
 	leave
@@ -1134,6 +1130,7 @@ terminal_raw_mode:
 ; void terminal_restore_mode()
 ;
 ; Restore original terminal settings.
+; Restore original STDIN flags.
 ;
 terminal_restore_mode:
 	enter	0, 0
@@ -1150,6 +1147,14 @@ terminal_restore_mode:
 	push	TCSAFLUSH
 	push	STDIN
 	call	tcsetattr
+	add	esp, 12
+
+	; restore stdin flags
+	; fcntl(stdin, F_SETFL, flags)
+	push	DWORD [save_stdin_flags]
+	push	F_SETFL
+	push	STDIN
+	call	fcntl
 	add	esp, 12
 
 	pop	eax
