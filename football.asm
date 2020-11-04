@@ -21,6 +21,8 @@
 %define F_GETFL		3
 %define F_SETFL		4
 
+%define	OFFENSE_CHAR	'O'	; characters for offensive player
+%define	DEFENSE_CHAR	'X'	; characters for defensive players
 %define	FIELDPOS	20	; starting field position
 %define	GAME_TIME	150	; length of a quarter
 %define TICK		100000	; 1/10th of a second
@@ -714,6 +716,7 @@ boardstr	db	"                                                    ", 10
 		db	"   INPUTS  Movement: wasd                           ", 10
 		db	"               Kick: k (only on 4th down)           ", 10
 		db	"               Quit: q                              ", 10
+		db	"                                                    ", 10
 		db	"           Hit Enter after each play                ", 10
 		db	"                                                    ", 10
 		db	"                                                    ", 10
@@ -756,7 +759,7 @@ drawboard:
 	call	calc_player_offset
 	add	esp, 8
 	mov	[ebx], eax			; save offset to local var
-	mov	BYTE [boardstr + eax], 'X'
+	mov	BYTE [boardstr + eax], OFFENSE_CHAR
 
 	mov	ecx, NUM_DEFENSE
 	draw_defense:
@@ -766,7 +769,7 @@ drawboard:
 	call	calc_player_offset
 	add	esp, 8
 	mov	DWORD [ebx], eax			; save offset to local var
-	mov	BYTE [boardstr + eax], 'O'
+	mov	BYTE [boardstr + eax], DEFENSE_CHAR
 	loop	draw_defense
 
 
