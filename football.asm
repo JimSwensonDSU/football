@@ -44,6 +44,7 @@ segment .bss
 	timeremaining	resd	1
 	direction	resd	1	; 1 = right, -1 = left
 
+	hitenter	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
 	lineofscrimmage	resd	1
@@ -129,6 +130,7 @@ initgame:
 	mov	DWORD [quarter], 1
 	mov	DWORD [timeremaining], 150
 
+	mov	DWORD [hitenter], 0
 	mov	DWORD [playrunning], 0
 	mov	DWORD [tackle], 0
 	mov	DWORD [lineofscrimmage], 20
@@ -201,10 +203,12 @@ process_input:
 
 
 
+	cmp	DWORD [hitenter], 1
+	je	check_enter
+
 	;
 	; w, a, s, d - offense player movement
 	;
-
 	check_w:
 	cmp	al, 'w'
 	jne	check_s
@@ -241,9 +245,9 @@ process_input:
 
 
 	check_enter:
-	cmp	al, 13
+	cmp	al, 10
 	jne	check_q
-	; do something for enter
+	mov	DWORD [hitenter], 0
 	jmp	leave_process_input
 
 
@@ -352,6 +356,7 @@ move_offense:
 	cmp	DWORD [tackle], 1
 	jne	move_offense_done
 	mov	DWORD [playrunning], 0
+	mov	DWORD [hitenter], 1
 
 	; restore the saves values for offense and fieldpos
 
@@ -402,8 +407,10 @@ boardstr	db	"   ---------------------------------------------    ", 10
 		db	"   | QUARTER: %d | TIME REMAINING: %d%d.%d |            ", 10
 		db	"   -------------------------------------            ", 10
 		db	"                                                    ", 10
+		db	" State Variables                                    ", 10
 		db	" tackle: %d                                         ", 10
 		db	" playrunning: %d                                    ", 10
+		db	" hitenter: %d                                       ", 10
 		db	0
 
 drawboard:
@@ -452,6 +459,7 @@ drawboard:
 	mov	ebx, 10
 
 	; some state info
+	push	DWORD [hitenter]
 	push	DWORD [playrunning]
 	push	DWORD [tackle]
 
@@ -534,7 +542,7 @@ drawboard:
 
 	push	boardstr
 	call	printf
-	add	esp, 68
+	add	esp, 72
 
 
 
