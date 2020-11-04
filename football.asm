@@ -102,6 +102,8 @@ newgame:
 
 		call	decrement_timeremaining
 
+		call	update_game_state
+
 		jmp	eventloop
 
 
@@ -123,7 +125,8 @@ initgame:
 
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
-	mov	DWORD [fieldpos], 20
+	;mov	DWORD [fieldpos], 20
+	mov	DWORD [fieldpos], 98
 	mov	DWORD [yardstogo], 10
 	mov	DWORD [homescore], 0
 	mov	DWORD [visitorscore], 0
@@ -186,6 +189,39 @@ decrement_timeremaining:
 	leave_decrement_timeremaining:
 	leave
 	ret
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void update_game_state()
+;
+update_game_state:
+	enter	0, 0
+
+	;
+	; check for a touchdown
+	;
+	; For a touchdown:
+	; - display the "touchdown" splash screen
+	; - increment score by 7
+	; - pause here until they hit enter
+	;
+	cmp	DWORD [fieldpos], 100
+	jl	state_tackle
+
+	mov	DWORD [hitenter], 1
+	call	drawtouchdown
+	state_touchdown:
+	call	process_input
+	cmp	DWORD [hitenter], 1
+	je	state_touchdown
+	call	initgame
+
+	state_tackle:
+
+	leave
+	ret
+;
 ;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
@@ -384,6 +420,33 @@ move_offense:
 
 ;------------------------------------------------------------------------------
 ;
+; void drawtouchdown()
+;
+; Display
+
+segment .data
+
+touchdownstr	db	"   ---------------------------------------------    ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"\  ||-   -                               -   -||  / ", 10
+		db	" | |||   |       !!! TOUCHDOWN !!!!      |   ||| |  ", 10
+		db	"/  ||-   -                               -   -||  \ ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"   ---------------------------------------------    ", 10
+drawtouchdown:
+	enter	0, 0
+	call	homecursor
+	push	touchdownstr
+	call	printf
+	add	esp, 4
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+
+;------------------------------------------------------------------------------
+;
 ; void drawboard()
 ;
 ; Draw the playing board
@@ -398,7 +461,7 @@ boardstr	db	"   ---------------------------------------------    ", 10
 		db	"/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	10
+		db	"                                                    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
