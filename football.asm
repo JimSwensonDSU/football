@@ -60,10 +60,8 @@ segment .bss
 
 segment .text
 	global  asm_main
-	extern	fcntl
-	extern	getchar
 	extern	usleep
-	extern  tcsetattr, tcgetattr
+	extern  fcntl, tcsetattr, tcgetattr
 
 asm_main:
 	push	ebp
@@ -1067,8 +1065,12 @@ get_key:
 	call	fcntl
 	add	esp, 12
 
-	call	getchar
-	mov	DWORD [ebp - 8], eax
+	; Read 1 byte from stdin
+	mov	eax, SYS_read
+	mov	ebx, STDIN
+	lea	ecx, [ebp - 8]
+	mov	edx, 1
+	int	0x80
 
 	; restore flags
 	; fcntl(stdin, F_SETFL, flags)
