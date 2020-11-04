@@ -24,6 +24,9 @@
 %define	OFFENSE_CHAR	'O'	; character for offensive player
 %define	DEFENSE_CHAR	'X'	; character for defensive players
 %define	FIELDPOS	20	; starting field position
+%define	FIELDGOAL	70	; min fieldpos to attempt a field goal
+%define	MIN_PUNT	20	; minimum punt distance
+%define	MAX_PUNT	60	; maximum punt distance
 %define	GAME_TIME	150	; length of a quarter
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
@@ -53,6 +56,7 @@ segment .bss
 	requireenter	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
+	punt		resd	1	; 1 = yes, 0 = no
 	lineofscrimmage	resd	1
 
 	; location of players
@@ -139,6 +143,7 @@ init_game:
 	mov	DWORD [requireenter], 0
 	mov	DWORD [playrunning], 0
 	mov	DWORD [tackle], 0
+	mov	DWORD [punt], 0
 	mov	DWORD [lineofscrimmage], FIELDPOS
 
 	mov	DWORD [direction], 1
@@ -248,6 +253,20 @@ update_game_state:
 	enter	0, 0
 
 	push	eax
+
+	; check for a punt
+	state_punt:
+	cmp	DWORD [punt], 1
+	jne	state_touchdown
+	mov	DWORD [requireenter], 1
+	mov	DWORD [punt], 0
+	call	drawpunt
+	state_punt_loop:
+	call	process_input
+	cmp	DWORD [requireenter], 1
+	je	state_punt_loop
+	jmp	leave_update_game_state
+
 
 	;
 	; check for a touchdown
@@ -501,15 +520,92 @@ process_input:
 
 
 
+	; quit
 	check_q:
 	cmp	al, 'q'
-	jne	leave_process_input
+	jne	check_k
 	mov	DWORD [gameover], 1
 	jmp	leave_process_input
 
 
 
+	; kick (punt or fieldgoal)
+	;
+	; To process, must be 4th down and no play running.
+	;
+	; if fieldpos >= FIELDGOAL, try a fieldgoal, otherwise a punt
+	;
+	check_k:
+	cmp	al, 'k'
+	jne	leave_process_input
+	cmp	DWORD [down], 4
+	jne	leave_process_input
+	cmp	DWORD [playrunning], 0
+	jne	leave_process_input
+
+	cmp	DWORD [fieldpos], FIELDGOAL
+	jge	try_field_goal
+	call	do_punt
+	jmp	leave_process_input
+	try_field_goal:
+	;call	do_field_goal
+	jmp	leave_process_input
+
+
 	leave_process_input:
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void do_punt()
+;
+; Generates a random int between MIN_PUNT and MAX_PUNT and adds to fieldpos.
+; If >= 100, then touchback.
+;
+do_punt:
+	enter	0, 0
+
+	push	eax
+
+	mov	DWORD [punt], 1
+
+	mov	eax, DWORD [direction]
+	neg	eax
+	mov	DWORD [direction], eax
+	mov	eax, DWORD [possession]
+	neg	eax
+	mov	DWORD [possession], eax
+	mov	DWORD [down], 1
+	mov	DWORD [yardstogo], 10
+
+	mov	eax, MAX_PUNT
+	sub	eax, MIN_PUNT
+	push	eax
+	call	random
+	add	esp, 4
+	add	eax, MIN_PUNT
+
+	add	DWORD [fieldpos], eax
+	cmp	DWORD [fieldpos], 100
+	jge	punt_touchback
+	mov	eax, 100
+	sub	eax, DWORD [fieldpos]
+	mov	DWORD [fieldpos], eax
+	mov	DWORD [lineofscrimmage], eax
+	jmp	leave_do_punt
+
+	punt_touchback:
+	mov	DWORD [fieldpos], FIELDPOS
+	mov	DWORD [lineofscrimmage], FIELDPOS
+
+	leave_do_punt:
+	call	init_player_positions
+
+	pop	eax
+
 	leave
 	ret
 ;
@@ -694,6 +790,36 @@ drawtackle:
 
 ;------------------------------------------------------------------------------
 ;
+; void drawpunt()
+;
+
+segment .data
+
+puntstr		db	10
+		db	10
+		db	10
+		db	10
+		db	10
+		db	"   ---------------------------------------------    ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"\  ||-   -                               -   -||  / ", 10
+		db	" | |||   |            PUNTED             |   ||| |  ", 10
+		db	"/  ||-   -                               -   -||  \ ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"   ---------------------------------------------    ", 10
+drawpunt:
+	enter	0, 0
+	call	homecursor
+	push	puntstr
+	call	printf
+	add	esp, 4
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
 ; void drawboard()
 ;
 ; Draw the playing board
@@ -731,8 +857,10 @@ boardstr	db	"                                                    ", 10
 		db	"          tackle: %d                                ", 10
 		db	"     playrunning: %d                                ", 10
 		db	"    requireenter: %d                                ", 10
+		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
 		db	"      possession: %d                                ", 10
+		db	"       direction: %d                                ", 10
 		db	"                                                    ", 10
 		db	"----------------------------------------------------", 10
 		db	0
@@ -783,8 +911,10 @@ drawboard:
 	mov	ebx, 10
 
 	; some state info
+	push	DWORD [direction]
 	push	DWORD [possession]
 	push	DWORD [lineofscrimmage]
+	push	DWORD [fieldpos]
 	push	DWORD [requireenter]
 	push	DWORD [playrunning]
 	push	DWORD [tackle]
@@ -888,7 +1018,7 @@ drawboard:
 	print_the_board:
 	push	boardstr
 	call	printf
-	add	esp, 88
+	add	esp, 96
 
 
 
