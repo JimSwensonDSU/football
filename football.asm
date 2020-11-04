@@ -697,7 +697,7 @@ boardstr	db	"   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"   | HOME: %d%d | VISITOR: %d%d |                       ", 10
+		db	"   | %c HOME: %d%d | %c VISITOR: %d%d |                   ", 10
 		db	"   -------------------------------------            ", 10
 		db	"   | QUARTER: %d | TIME REMAINING: %d%d.%d |            ", 10
 		db	"   -------------------------------------            ", 10
@@ -782,14 +782,32 @@ drawboard:
 	push	edx
 	push	eax
 
+	; visitor possession
+	cmp	DWORD [possession], -1
+	je	is_visitor_possession
+	push	' '
+	jmp	push_home_score
+	is_visitor_possession:
+	push	'*'
+
 	; home score
+	push_home_score:
 	xor	edx, edx
 	mov	eax, DWORD [homescore]
 	div	ebx
 	push	edx
 	push	eax
 
+	; home possession
+	cmp	DWORD [possession], 1
+	je	is_home_possession
+	push	' '
+	jmp	push_yards_to_go
+	is_home_possession:
+	push	'*'
+
 	; yards to go
+	push_yards_to_go:
 	xor	edx, edx
 	mov	eax, DWORD [yardstogo]
 	div	ebx
@@ -841,7 +859,7 @@ drawboard:
 
 	push	boardstr
 	call	printf
-	add	esp, 80
+	add	esp, 88
 
 
 
