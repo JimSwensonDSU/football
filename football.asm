@@ -708,11 +708,12 @@ boardstr	db	"                                                    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"           | QUARTER: %d | TIME: %d%d.%d |              ", 10
-		db	"           ---------------------------              ", 10
+		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
+		db	"   --------------                 --------------    ", 10
 		db	"                                                    ", 10
 		db	"   INPUTS  Movement: wasd                           ", 10
-		db	"           Kick: k (only on 4th down)               ", 10
+		db	"               Kick: k (only on 4th down)           ", 10
+		db	"               Quit: q                              ", 10
 		db	"           Hit Enter after each play                ", 10
 		db	"                                                    ", 10
 		db	"                                                    ", 10
