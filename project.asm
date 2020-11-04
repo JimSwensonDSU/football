@@ -135,14 +135,18 @@ initgame:
 	mov	DWORD [offense], 0
 	mov	DWORD [offense + 4], 1
 
-	mov	DWORD [defense], 3
-	mov	DWORD [defense + 4], 0
-	mov	DWORD [defense + 8], 3
+	mov	DWORD [defense],      3
+	mov	DWORD [defense + 4],  0
+
+	mov	DWORD [defense + 8],  3
 	mov	DWORD [defense + 12], 1
+
 	mov	DWORD [defense + 16], 3
 	mov	DWORD [defense + 20], 2
+
 	mov	DWORD [defense + 24], 5
 	mov	DWORD [defense + 28], 1
+
 	mov	DWORD [defense + 32], 8
 	mov	DWORD [defense + 36], 1
 
@@ -342,12 +346,45 @@ boardstr	db	"   ---------------------------------------------    ", 10
 		db	0
 
 drawboard:
-	enter	0, 0
+	enter	4*(1+NUM_DEFENSE), 0
+
+	; Local vars for saving the player offsets, so we can restore
+	; those characters in the boardstr after printing.
+	;
+	; [ebp - 4]  : offense
+	; [ebp - 8]  : defender 1
+	; [ebp - 12] : defender 2
+	; .
+	; .
+	; .
 
 	push	eax
 	push	ebx
 	push	ecx
 	push	edx
+
+
+	; draw players into the boardstr
+	lea	ebx, [ebp - 4]
+	push	DWORD [offense + 4]		; offense Y
+	push	DWORD [offense]			; offense X
+	call	calc_player_offset
+	add	esp, 8
+	mov	[ebx], eax			; save offset to local var
+	mov	BYTE [boardstr + eax], 'X'
+
+	mov	ecx, NUM_DEFENSE
+	draw_defense:
+	sub	ebx, 4
+	push	DWORD [defense + 8*ecx - 4]	; defender Y
+	push	DWORD [defense + 8*ecx - 8]	; defender X
+	call	calc_player_offset
+	add	esp, 8
+	mov	DWORD [ebx], eax			; save offset to local var
+	mov	BYTE [boardstr + eax], 'O'
+	loop	draw_defense
+
+
 
 	call	homecursor
 
@@ -430,28 +467,25 @@ drawboard:
 	push	DWORD [down]
 
 
-	; draw players
-	push	DWORD [offense + 4]
-	push	DWORD [offense]
-	call	calc_player_offset
-	add	esp, 8
-
-	lea	ebx, [boardstr + eax]
-	mov	BYTE [ebx], 'X'
-
-
 	push	boardstr
 	call	printf
-	add	esp, 0
+	add	esp, 60
 
 
-	; clear players
-	mov	BYTE [ebx], ' '
+
+	; restore the boardstr
+	mov	ebx, ebp
+	mov	ecx, 1+NUM_DEFENSE
+	restore_board:
+	sub	ebx, 4
+	mov	eax, DWORD [ebx]
+	mov	BYTE [boardstr + eax], ' '
+	loop	restore_board
 
 
 	pop	edx
-	pop	ebx
 	pop	ecx
+	pop	ebx
 	pop	eax
 	leave
 	ret
