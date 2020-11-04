@@ -24,7 +24,8 @@
 %define	OFFENSE_CHAR	'O'	; character for offensive player
 %define	DEFENSE_CHAR	'X'	; character for defensive players
 %define	FIELDPOS	20	; starting field position
-%define	FIELDGOAL	70	; min fieldpos to attempt a field goal
+%define	FIELDGOAL_MIN	70	; min fieldpos to attempt a field goal
+%define	FIELDGOAL_PCT	75	; percent success rate for hitting a field goal
 %define	MIN_PUNT	20	; minimum punt distance
 %define	MAX_PUNT	60	; maximum punt distance
 %define	GAME_TIME	150	; length of a quarter
@@ -57,6 +58,7 @@ segment .bss
 	playrunning	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
 	punt		resd	1	; 1 = yes, 0 = no
+	fieldgoal	resd	1	; 1 = good, 0 = none, -1 = miss
 	lineofscrimmage	resd	1
 
 	; location of players
@@ -144,6 +146,7 @@ init_game:
 	mov	DWORD [playrunning], 0
 	mov	DWORD [tackle], 0
 	mov	DWORD [punt], 0
+	mov	DWORD [fieldgoal], 0
 	mov	DWORD [lineofscrimmage], FIELDPOS
 
 	mov	DWORD [direction], 1
@@ -254,7 +257,32 @@ update_game_state:
 
 	push	eax
 
+
+	;
+	; check for a field goal
+	;
+	state_fieldgoal:
+	cmp	DWORD [fieldgoal], 0
+	je	state_punt
+	mov	DWORD [requireenter], 1
+	call	drawboard
+	cmp	DWORD [fieldgoal], -1
+	je	fg_miss
+	call	drawfieldgoalgood
+	jmp	state_fieldgoal_loop
+	fg_miss:
+	call	drawfieldgoalmiss
+	state_fieldgoal_loop:
+	call	process_input
+	cmp	DWORD [requireenter], 1
+	je	state_fieldgoal_loop
+	mov	DWORD [fieldgoal], 0
+	jmp	leave_update_game_state
+
+
+	;
 	; check for a punt
+	;
 	state_punt:
 	cmp	DWORD [punt], 1
 	jne	state_touchdown
@@ -533,7 +561,7 @@ process_input:
 	;
 	; To process, must be 4th down and no play running.
 	;
-	; if fieldpos >= FIELDGOAL, try a fieldgoal, otherwise a punt
+	; if fieldpos >= FIELDGOAL_MIN, try a fieldgoal, otherwise a punt
 	;
 	check_k:
 	cmp	al, 'k'
@@ -543,16 +571,72 @@ process_input:
 	cmp	DWORD [playrunning], 0
 	jne	leave_process_input
 
-	cmp	DWORD [fieldpos], FIELDGOAL
+	cmp	DWORD [fieldpos], FIELDGOAL_MIN
 	jge	try_field_goal
 	call	do_punt
 	jmp	leave_process_input
 	try_field_goal:
-	;call	do_field_goal
+	call	do_fieldgoal
 	jmp	leave_process_input
 
 
 	leave_process_input:
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void do_fieldgoal()
+;
+; Attempt a field goal, with a FIELDGOAL_PCT success rate.
+;
+do_fieldgoal:
+	enter	0, 0
+
+	push	eax
+
+	push	100
+	call	random
+	add	esp, 4
+	cmp	eax, FIELDGOAL_PCT
+	jg	fieldgoal_miss
+	mov	DWORD [fieldgoal], 1
+	mov	DWORD [fieldpos], FIELDPOS
+	mov	DWORD [lineofscrimmage], FIELDPOS
+
+	cmp	DWORD [possession], 1
+	jne	fieldgoal_visitor
+	fieldgoal_home:
+	add	DWORD [homescore], 3
+	jmp	fieldgoal_next;
+	fieldgoal_visitor:
+	add	DWORD [visitorscore], 3
+	fieldgoal_next:
+	jmp	leave_do_fieldgoal
+
+	fieldgoal_miss:
+	mov	DWORD [fieldgoal], -1
+	mov	eax, 100
+	sub	eax, DWORD [fieldpos]
+	mov	DWORD [fieldpos], eax
+	mov	DWORD [lineofscrimmage], eax
+	jmp	leave_do_fieldgoal
+
+	leave_do_fieldgoal:
+	mov	eax, DWORD [direction]
+	neg	eax
+	mov	DWORD [direction], eax
+	mov	eax, DWORD [possession]
+	neg	eax
+	mov	DWORD [possession], eax
+	mov	DWORD [down], 1
+	mov	DWORD [yardstogo], 10
+	call	init_player_positions
+
+	pop	eax
+
 	leave
 	ret
 ;
@@ -571,15 +655,6 @@ do_punt:
 	push	eax
 
 	mov	DWORD [punt], 1
-
-	mov	eax, DWORD [direction]
-	neg	eax
-	mov	DWORD [direction], eax
-	mov	eax, DWORD [possession]
-	neg	eax
-	mov	DWORD [possession], eax
-	mov	DWORD [down], 1
-	mov	DWORD [yardstogo], 10
 
 	mov	eax, MAX_PUNT
 	sub	eax, MIN_PUNT
@@ -602,6 +677,14 @@ do_punt:
 	mov	DWORD [lineofscrimmage], FIELDPOS
 
 	leave_do_punt:
+	mov	eax, DWORD [direction]
+	neg	eax
+	mov	DWORD [direction], eax
+	mov	eax, DWORD [possession]
+	neg	eax
+	mov	DWORD [possession], eax
+	mov	DWORD [down], 1
+	mov	DWORD [yardstogo], 10
 	call	init_player_positions
 
 	pop	eax
@@ -751,6 +834,66 @@ drawtouchdown:
 	enter	0, 0
 	call	homecursor
 	push	touchdownstr
+	call	printf
+	add	esp, 4
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void drawfieldgoalgood()
+;
+
+segment .data
+
+fggoodstr	db	10
+		db	10
+		db	10
+		db	10
+		db	10
+		db	"   ---------------------------------------------    ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"\  ||-   -                               -   -||  / ", 10
+		db	" | |||   |       !!! FIELD GOAL !!!!     |   ||| |  ", 10
+		db	"/  ||-   -                               -   -||  \ ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"   ---------------------------------------------    ", 10
+drawfieldgoalgood:
+	enter	0, 0
+	call	homecursor
+	push	fggoodstr
+	call	printf
+	add	esp, 4
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void drawfieldgoalmiss()
+;
+
+segment .data
+
+fgmissstr	db	10
+		db	10
+		db	10
+		db	10
+		db	10
+		db	"   ---------------------------------------------    ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"\  ||-   -                               -   -||  / ", 10
+		db	" | |||   |        FIELD GOAL MISSED      |   ||| |  ", 10
+		db	"/  ||-   -                               -   -||  \ ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"   ---------------------------------------------    ", 10
+drawfieldgoalmiss:
+	enter	0, 0
+	call	homecursor
+	push	fgmissstr
 	call	printf
 	add	esp, 4
 	leave
