@@ -288,6 +288,7 @@ update_game_state:
 	jne	state_touchdown
 	mov	DWORD [requireenter], 1
 	mov	DWORD [punt], 0
+	call	drawboard
 	call	drawpunt
 	state_punt_loop:
 	call	process_input
