@@ -70,7 +70,7 @@ asm_main:
 	; ********** CODE STARTS HERE **********
 
 	call	terminal_raw_mode
-	call	newgame
+	call	new_game
 	call	terminal_restore_mode
 
 	; *********** CODE ENDS HERE ***********
@@ -81,11 +81,11 @@ asm_main:
 
 ;------------------------------------------------------------------------------
 ;
-; newgame()
+; new_game()
 ;
-newgame:
+new_game:
 	enter	0, 0
-	call	initgame
+	call	init_game
 	call	clearscreen
 	call	drawboard
 
@@ -117,11 +117,11 @@ newgame:
 
 ;------------------------------------------------------------------------------
 ;
-; void initgame()
+; void init_game()
 ;
 ; Initialize all settings for a new game.
 ;
-initgame:
+init_game:
 	enter	0, 0
 
 	mov	DWORD [gameover], 0
@@ -368,6 +368,64 @@ update_game_state:
 	jmp	leave_update_game_state
 
 	leave_update_game_state:
+
+	; Check if quarter is over if a play is not running
+	cmp	DWORD [playrunning], 1
+	je	update_game_state_done
+	cmp	DWORD [timeremaining], 0
+	jg	update_game_state_done
+	inc	DWORD [quarter]
+
+	; Done with quarter
+	;
+	; For a new quarter:
+	;
+	; 2 or 4
+	;   - switch direction
+	;   - possession, fieldpos, lineofscrimmage, down, yardstogo remain same
+	;   - reset timeremaining
+	;
+	; 3
+	;   - visitor possession (possession = -1)
+	;   - fieldpos = 20
+	;   - lineofscrimmage = 20
+	;   - down = 1
+	;   - yardstogo = 10
+	;   - direction = 1
+	;
+
+	cmp	DWORD [quarter], 4
+	jg	state_game_over
+
+	cmp	DWORD [quarter], 3
+	je	state_second_half
+
+	state_second_or_forth_quarter:
+	mov	eax, DWORD [direction]
+	neg	eax
+	mov	DWORD [direction], eax
+	mov	DWORD [timeremaining], 150
+	mov	DWORD [timer_counter], TIMER_COUNTER
+	call	init_player_positions
+	jmp	update_game_state_done
+
+	state_second_half:
+	mov	DWORD [down], 1
+	mov	DWORD [fieldpos], 20
+	mov	DWORD [yardstogo], 10
+	mov	DWORD [timeremaining], 150
+	mov	DWORD [lineofscrimmage], 20
+	mov	DWORD [direction], 1
+	mov	DWORD [possession], -1
+	mov	DWORD [timer_counter], TIMER_COUNTER
+	jmp	update_game_state_done
+
+	state_game_over:
+	mov	DWORD [gameover], 1
+	jmp	update_game_state_done
+
+
+	update_game_state_done:
 	pop	eax
 
 	leave
