@@ -257,6 +257,7 @@ update_game_state:
 	; - switch direction
 	; - set field state
 	;      fieldpos = 20
+	;      lineofscrimmage = 20
 	;      down = 1
 	;      yards to go = 10
 	;      offense
@@ -281,6 +282,7 @@ update_game_state:
 	je	state_touchdown_loop
 
 	mov	DWORD [fieldpos], 20
+	mov	DWORD [lineofscrimmage], 20
 	mov	DWORD [down], 1
 	mov	DWORD [yardstogo], 10
 
@@ -303,7 +305,7 @@ update_game_state:
 	; For a tackle:
 	; - display the "tackle" splash screen
 	; - update line of scrimmage, yards to go, and down
-	; - if yards to go <= 0, update down to 1 and yards to go to 10
+	; - if yards to go <= 0, update down to 1 and yards to go to 10, otherwise down++
 	; - if down >= 5
 	;      switch home/visitor
 	;      switch direction
@@ -312,7 +314,7 @@ update_game_state:
 	;      yards to go = 10
 	state_tackle:
 	cmp	DWORD [tackle], 1
-	jne	leave_update_game_state
+	jne	state_something_else
 	mov	DWORD [hitenter], 1
 	call	drawboard
 	call	drawtackle
@@ -320,7 +322,48 @@ update_game_state:
 	call	process_input
 	cmp	DWORD [hitenter], 1
 	je	state_tackle_loop
+
 	mov	DWORD [tackle], 0
+	mov	eax, DWORD [fieldpos]
+	sub	eax, DWORD [lineofscrimmage]	; eax = gain
+	sub	DWORD [yardstogo], eax
+	cmp	DWORD [yardstogo], 0
+	jle	first_down
+	inc	DWORD [down]
+	cmp	DWORD [down], 4
+	jg	turnover
+	mov	eax, DWORD [fieldpos]
+	mov	DWORD [lineofscrimmage], eax
+	call	init_player_positions
+	jmp	leave_update_game_state
+	
+
+	first_down:
+	mov	eax, DWORD [fieldpos]
+	mov	DWORD [lineofscrimmage], eax
+	mov	DWORD [down], 1
+	mov	DWORD [yardstogo], 10
+	call	init_player_positions
+	jmp	leave_update_game_state
+
+	turnover:
+	mov	eax, DWORD [possession]
+	neg	eax
+	mov	DWORD [possession], eax
+	mov	eax, DWORD [direction]
+	neg	eax
+	mov	DWORD [direction], eax
+	mov	eax, 100
+	sub	eax, DWORD [fieldpos]
+	mov	DWORD [fieldpos], eax
+	mov	DWORD [lineofscrimmage], eax
+	mov	DWORD [down], 1
+	mov	DWORD [yardstogo], 10
+	call	init_player_positions
+	jmp	leave_update_game_state
+	
+
+	state_something_else:
 	jmp	leave_update_game_state
 
 	leave_update_game_state:
@@ -604,6 +647,8 @@ boardstr	db	"   ---------------------------------------------    ", 10
 		db	" tackle: %d                                         ", 10
 		db	" playrunning: %d                                    ", 10
 		db	" hitenter: %d                                       ", 10
+		db	" lineofscrimmage: %d                                ", 10
+		db	" possession: %d                                     ", 10
 		db	0
 
 drawboard:
@@ -652,6 +697,8 @@ drawboard:
 	mov	ebx, 10
 
 	; some state info
+	push	DWORD [possession]
+	push	DWORD [lineofscrimmage]
 	push	DWORD [hitenter]
 	push	DWORD [playrunning]
 	push	DWORD [tackle]
@@ -735,7 +782,7 @@ drawboard:
 
 	push	boardstr
 	call	printf
-	add	esp, 72
+	add	esp, 80
 
 
 
