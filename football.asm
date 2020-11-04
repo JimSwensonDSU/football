@@ -43,6 +43,7 @@ segment .bss
 	quarter		resd	1
 	timeremaining	resd	1
 	direction	resd	1	; 1 = right, -1 = left
+	possession	resd	1	; 1 = home, -1 = visitor
 
 	hitenter	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
@@ -137,11 +138,34 @@ initgame:
 	mov	DWORD [tackle], 0
 	mov	DWORD [lineofscrimmage], 20
 
+	mov	DWORD [direction], 1
+	mov	DWORD [possession], 1
+
+	mov	DWORD [timer_counter], TIMER_COUNTER
+
+	call	init_player_positions
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void init_player_positions()
+;
+init_player_positions:
+	enter	0, 0
+
+	cmp	DWORD [direction], 1
+	jne	right_to_left
+
+	left_to_right:
 	mov	DWORD [offense], 0
 	mov	DWORD [offense + 4], 1
 
-	mov	DWORD [defense],      1
 	;mov	DWORD [defense],      3
+	mov	DWORD [defense],      1
 	mov	DWORD [defense + 4],  0
 
 	mov	DWORD [defense + 8],  3
@@ -156,12 +180,35 @@ initgame:
 	mov	DWORD [defense + 32], 8
 	mov	DWORD [defense + 36], 1
 
-	mov	DWORD [direction], 1
+	jmp	leave_init_player_positions
 
-	mov	DWORD [timer_counter], TIMER_COUNTER
+
+	right_to_left:
+	mov	DWORD [offense], 9
+	mov	DWORD [offense + 4], 1
+
+	;mov	DWORD [defense],      6
+	mov	DWORD [defense],      8
+	mov	DWORD [defense + 4],  0
+
+	mov	DWORD [defense + 8],  6
+	mov	DWORD [defense + 12], 1
+
+	mov	DWORD [defense + 16], 6
+	mov	DWORD [defense + 20], 2
+
+	mov	DWORD [defense + 24], 4
+	mov	DWORD [defense + 28], 1
+
+	mov	DWORD [defense + 32], 1
+	mov	DWORD [defense + 36], 1
+
+
+	leave_init_player_positions:
 
 	leave
 	ret
+
 ;
 ;------------------------------------------------------------------------------
 
@@ -197,31 +244,72 @@ decrement_timeremaining:
 update_game_state:
 	enter	0, 0
 
+	push	eax
+
 	;
 	; check for a touchdown
 	;
 	; For a touchdown:
 	; - display the "touchdown" splash screen
-	; - increment score by 7
+	; - increment offense score by 7
 	; - pause here until they hit enter
-	;
-	state_touchdown
+	; - switch home/visitor possession
+	; - switch direction
+	; - set field state
+	;      fieldpos = 20
+	;      down = 1
+	;      yards to go = 10
+	;      offense
+
+	state_touchdown:
 	cmp	DWORD [fieldpos], 100
 	jl	state_tackle
 	mov	DWORD [hitenter], 1
+	cmp	DWORD [possession], 1
+	jne	touchdown_visitor
+	touchdown_home:
 	add	DWORD [homescore], 7
+	jmp	touchdown_next;
+	touchdown_visitor:
+	add	DWORD [visitorscore], 7
+	touchdown_next:
 	call	drawboard
 	call	drawtouchdown
 	state_touchdown_loop:
 	call	process_input
 	cmp	DWORD [hitenter], 1
 	je	state_touchdown_loop
-	call	initgame
+
+	mov	DWORD [fieldpos], 20
+	mov	DWORD [down], 1
+	mov	DWORD [yardstogo], 10
+
+	mov	eax, DWORD [possession]
+	neg	eax
+	mov	DWORD [possession], eax
+
+	mov	eax, DWORD [direction]	; direction
+	neg	eax
+	mov	DWORD [direction], eax
+
+	call	init_player_positions
+
 	jmp	leave_update_game_state
 
 
 	;
 	; check for a tackle
+	;
+	; For a tackle:
+	; - display the "tackle" splash screen
+	; - update line of scrimmage, yards to go, and down
+	; - if yards to go <= 0, update down to 1 and yards to go to 10
+	; - if down >= 5
+	;      switch home/visitor
+	;      switch direction
+	;      fieldpos = 100 - fieldpos
+	;      down = 1
+	;      yards to go = 10
 	state_tackle:
 	cmp	DWORD [tackle], 1
 	jne	leave_update_game_state
@@ -236,6 +324,8 @@ update_game_state:
 	jmp	leave_update_game_state
 
 	leave_update_game_state:
+	pop	eax
+
 	leave
 	ret
 ;
