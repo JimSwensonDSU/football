@@ -125,8 +125,7 @@ initgame:
 
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
-	;mov	DWORD [fieldpos], 20
-	mov	DWORD [fieldpos], 98
+	mov	DWORD [fieldpos], 20
 	mov	DWORD [yardstogo], 10
 	mov	DWORD [homescore], 0
 	mov	DWORD [visitorscore], 0
@@ -206,19 +205,37 @@ update_game_state:
 	; - increment score by 7
 	; - pause here until they hit enter
 	;
+	state_touchdown
 	cmp	DWORD [fieldpos], 100
 	jl	state_tackle
-
 	mov	DWORD [hitenter], 1
+	add	DWORD [homescore], 7
+	call	drawboard
 	call	drawtouchdown
-	state_touchdown:
+	state_touchdown_loop:
 	call	process_input
 	cmp	DWORD [hitenter], 1
-	je	state_touchdown
+	je	state_touchdown_loop
 	call	initgame
+	jmp	leave_update_game_state
 
+
+	;
+	; check for a tackle
 	state_tackle:
+	cmp	DWORD [tackle], 1
+	jne	leave_update_game_state
+	mov	DWORD [hitenter], 1
+	call	drawboard
+	call	drawtackle
+	state_tackle_loop:
+	call	process_input
+	cmp	DWORD [hitenter], 1
+	je	state_tackle_loop
+	mov	DWORD [tackle], 0
+	jmp	leave_update_game_state
 
+	leave_update_game_state:
 	leave
 	ret
 ;
@@ -422,7 +439,6 @@ move_offense:
 ;
 ; void drawtouchdown()
 ;
-; Display
 
 segment .data
 
@@ -444,6 +460,30 @@ drawtouchdown:
 ;
 ;------------------------------------------------------------------------------
 
+;------------------------------------------------------------------------------
+;
+; void drawtackle()
+;
+
+segment .data
+
+tacklestr	db	"   ---------------------------------------------    ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"\  ||-   -                               -   -||  / ", 10
+		db	" | |||   |            TACKLED            |   ||| |  ", 10
+		db	"/  ||-   -                               -   -||  \ ", 10
+		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+		db	"   ---------------------------------------------    ", 10
+drawtackle:
+	enter	0, 0
+	call	homecursor
+	push	tacklestr
+	call	printf
+	add	esp, 4
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
 ;
