@@ -50,7 +50,7 @@ segment .bss
 	direction	resd	1	; 1 = right, -1 = left
 	possession	resd	1	; 1 = home, -1 = visitor
 
-	hitenter	resd	1	; 1 = yes, 0 = no
+	requireenter	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
 	lineofscrimmage	resd	1
@@ -136,7 +136,7 @@ init_game:
 	mov	DWORD [quarter], 1
 	mov	DWORD [timeremaining], GAME_TIME
 
-	mov	DWORD [hitenter], 0
+	mov	DWORD [requireenter], 0
 	mov	DWORD [playrunning], 0
 	mov	DWORD [tackle], 0
 	mov	DWORD [lineofscrimmage], FIELDPOS
@@ -268,7 +268,7 @@ update_game_state:
 	state_touchdown:
 	cmp	DWORD [fieldpos], 100
 	jl	state_tackle
-	mov	DWORD [hitenter], 1
+	mov	DWORD [requireenter], 1
 	mov	DWORD [playrunning], 0
 	cmp	DWORD [possession], 1
 	jne	touchdown_visitor
@@ -282,7 +282,7 @@ update_game_state:
 	call	drawtouchdown
 	state_touchdown_loop:
 	call	process_input
-	cmp	DWORD [hitenter], 1
+	cmp	DWORD [requireenter], 1
 	je	state_touchdown_loop
 
 	mov	DWORD [fieldpos], FIELDPOS
@@ -319,12 +319,12 @@ update_game_state:
 	state_tackle:
 	cmp	DWORD [tackle], 1
 	jne	state_something_else
-	mov	DWORD [hitenter], 1
+	mov	DWORD [requireenter], 1
 	call	drawboard
 	call	drawtackle
 	state_tackle_loop:
 	call	process_input
-	cmp	DWORD [hitenter], 1
+	cmp	DWORD [requireenter], 1
 	je	state_tackle_loop
 
 	mov	DWORD [tackle], 0
@@ -452,13 +452,13 @@ process_input:
 	je	leave_process_input
 
 
-	cmp	DWORD [hitenter], 1
+	cmp	DWORD [requireenter], 1
 	jne	check_w
 
 	; Did they hit enter
 	cmp	al, 10
 	jne	leave_process_input
-	mov	DWORD [hitenter], 0
+	mov	DWORD [requireenter], 0
 	jmp	leave_process_input
 
 
@@ -606,7 +606,7 @@ move_offense:
 	cmp	DWORD [tackle], 1
 	jne	move_offense_done
 	mov	DWORD [playrunning], 0
-	mov	DWORD [hitenter], 1
+	mov	DWORD [requireenter], 1
 
 	; restore the saves values for offense and fieldpos
 
@@ -730,7 +730,7 @@ boardstr	db	"                                                    ", 10
 		db	" -------------------                                ", 10
 		db	"          tackle: %d                                ", 10
 		db	"     playrunning: %d                                ", 10
-		db	"        hitenter: %d                                ", 10
+		db	"    requireenter: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
 		db	"      possession: %d                                ", 10
 		db	"                                                    ", 10
@@ -785,7 +785,7 @@ drawboard:
 	; some state info
 	push	DWORD [possession]
 	push	DWORD [lineofscrimmage]
-	push	DWORD [hitenter]
+	push	DWORD [requireenter]
 	push	DWORD [playrunning]
 	push	DWORD [tackle]
 
