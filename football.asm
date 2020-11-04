@@ -21,6 +21,7 @@
 %define F_GETFL		3
 %define F_SETFL		4
 
+%define	FIELDPOS	20	; starting field position
 %define	GAME_TIME	150	; length of a quarter
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
@@ -126,7 +127,7 @@ init_game:
 
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
-	mov	DWORD [fieldpos], 98
+	mov	DWORD [fieldpos], FIELDPOS
 	mov	DWORD [yardstogo], 10
 	mov	DWORD [homescore], 0
 	mov	DWORD [visitorscore], 0
@@ -136,7 +137,7 @@ init_game:
 	mov	DWORD [hitenter], 0
 	mov	DWORD [playrunning], 0
 	mov	DWORD [tackle], 0
-	mov	DWORD [lineofscrimmage], 20
+	mov	DWORD [lineofscrimmage], FIELDPOS
 
 	mov	DWORD [direction], 1
 	mov	DWORD [possession], 1
@@ -256,8 +257,8 @@ update_game_state:
 	; - switch home/visitor possession
 	; - switch direction
 	; - set field state
-	;      fieldpos = 20
-	;      lineofscrimmage = 20
+	;      fieldpos = FIELDPOS
+	;      lineofscrimmage = FIELDPOS
 	;      down = 1
 	;      yards to go = 10
 	;      offense
@@ -282,8 +283,8 @@ update_game_state:
 	cmp	DWORD [hitenter], 1
 	je	state_touchdown_loop
 
-	mov	DWORD [fieldpos], 20
-	mov	DWORD [lineofscrimmage], 20
+	mov	DWORD [fieldpos], FIELDPOS
+	mov	DWORD [lineofscrimmage], FIELDPOS
 	mov	DWORD [down], 1
 	mov	DWORD [yardstogo], 10
 
@@ -387,8 +388,8 @@ update_game_state:
 	;
 	; 3
 	;   - visitor possession (possession = -1)
-	;   - fieldpos = 20
-	;   - lineofscrimmage = 20
+	;   - fieldpos = FIELDPOS
+	;   - lineofscrimmage = FIELDPOS
 	;   - down = 1
 	;   - yardstogo = 10
 	;   - direction = 1
@@ -411,10 +412,10 @@ update_game_state:
 
 	state_second_half:
 	mov	DWORD [down], 1
-	mov	DWORD [fieldpos], 20
+	mov	DWORD [fieldpos], FIELDPOS
 	mov	DWORD [yardstogo], 10
 	mov	DWORD [timeremaining], GAME_TIME
-	mov	DWORD [lineofscrimmage], 20
+	mov	DWORD [lineofscrimmage], FIELDPOS
 	mov	DWORD [direction], 1
 	mov	DWORD [possession], -1
 	mov	DWORD [timer_counter], TIMER_COUNTER
@@ -636,7 +637,10 @@ move_offense:
 
 segment .data
 
-touchdownstr	db	"   ---------------------------------------------    ", 10
+touchdownstr	db	10
+		db	10
+		db	10
+		db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -                               -   -||  / ", 10
 		db	" | |||   |       !!! TOUCHDOWN !!!!      |   ||| |  ", 10
@@ -661,7 +665,10 @@ drawtouchdown:
 
 segment .data
 
-tacklestr	db	"   ---------------------------------------------    ", 10
+tacklestr	db	10
+		db	10
+		db	10
+		db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -                               -   -||  / ", 10
 		db	" | |||   |            TACKLED            |   ||| |  ", 10
@@ -688,7 +695,9 @@ drawtackle:
 
 segment .data
 
-boardstr	db	"           %c HOME: %d%d   %c VISITOR: %d%d               ", 10
+boardstr	db	"                                                    ", 10
+		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+		db	"                                                    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
@@ -696,14 +705,9 @@ boardstr	db	"           %c HOME: %d%d   %c VISITOR: %d%d               ", 10
 		db	"/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"                                                    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"                                                    ", 10
-		db	"           %c HOME: %d%d   %c VISITOR: %d%d               ", 10
-		db	"                                                    ", 10
-		db	"           ---------------------------              ", 10
 		db	"           | QUARTER: %d | TIME: %d%d.%d |              ", 10
 		db	"           ---------------------------              ", 10
 		db	"                                                    ", 10
@@ -711,12 +715,18 @@ boardstr	db	"           %c HOME: %d%d   %c VISITOR: %d%d               ", 10
 		db	"           Kick: k (only on 4th down)               ", 10
 		db	"           Hit Enter after each play                ", 10
 		db	"                                                    ", 10
-		db	" State Variables                                    ", 10
-		db	" tackle: %d                                         ", 10
-		db	" playrunning: %d                                    ", 10
-		db	" hitenter: %d                                       ", 10
+		db	"                                                    ", 10
+		db	"----------------------------------------------------", 10
+		db	"                                                    ", 10
+		db	"   State Variables                                  ", 10
+		db	" -------------------                                ", 10
+		db	"          tackle: %d                                ", 10
+		db	"     playrunning: %d                                ", 10
+		db	"        hitenter: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
-		db	" possession: %d                                     ", 10
+		db	"      possession: %d                                ", 10
+		db	"                                                    ", 10
+		db	"----------------------------------------------------", 10
 		db	0
 
 drawboard:
@@ -784,37 +794,6 @@ drawboard:
 	; quarter
 	push	DWORD [quarter]
 
-	; visitor score
-	xor	edx, edx
-	mov	eax, DWORD [visitorscore]
-	div	ebx
-	push	edx
-	push	eax
-
-	; visitor possession
-	cmp	DWORD [possession], -1
-	je	is_visitor_possession
-	push	' '
-	jmp	push_home_score
-	is_visitor_possession:
-	push	'*'
-
-	; home score
-	push_home_score:
-	xor	edx, edx
-	mov	eax, DWORD [homescore]
-	div	ebx
-	push	edx
-	push	eax
-
-	; home possession
-	cmp	DWORD [possession], 1
-	je	is_home_possession
-	push	' '
-	jmp	push_yards_to_go
-	is_home_possession:
-	push	'*'
-
 	; yards to go
 	push_yards_to_go:
 	xor	edx, edx
@@ -865,19 +844,42 @@ drawboard:
 	; down
 	push	DWORD [down]
 
-	; visitor
-	push	8
-	push	8
+	; visitor score
+	xor	edx, edx
+	mov	eax, DWORD [visitorscore]
+	div	ebx
+	push	edx
+	push	eax
+
+	; visitor possession
+	cmp	DWORD [possession], -1
+	je	is_visitor_possession
+	push	' '
+	jmp	push_home_score
+	is_visitor_possession:
 	push	'*'
 
-	; home
-	push	9
-	push	9
+	; home score
+	push_home_score:
+	xor	edx, edx
+	mov	eax, DWORD [homescore]
+	div	ebx
+	push	edx
+	push	eax
+
+	; home possession
+	cmp	DWORD [possession], 1
+	je	is_home_possession
+	push	' '
+	jmp	print_the_board
+	is_home_possession:
 	push	'*'
 
+
+	print_the_board
 	push	boardstr
 	call	printf
-	add	esp, 112
+	add	esp, 88
 
 
 
@@ -915,7 +917,7 @@ calc_player_offset:
 	push	ebx
 	push	edx
 
-	; Offset to offense position is 60 + Y*106 + X*4
+	; Offset to offense position is 225 + Y*106 + X*4
 	mov	eax, DWORD [ebp + 12]
 	mov	ebx, 106
 	mul	ebx
@@ -925,7 +927,7 @@ calc_player_offset:
 	mov	ebx, 4
 	mul	ebx
 	add	eax, DWORD [ebp - 4]
-	add	eax, 119	; was 60
+	add	eax, 225
 
 	pop	edx
 	pop	ebx
