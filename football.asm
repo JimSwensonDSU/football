@@ -266,6 +266,7 @@ update_game_state:
 	cmp	DWORD [fieldpos], 100
 	jl	state_tackle
 	mov	DWORD [hitenter], 1
+	mov	DWORD [playrunning], 0
 	cmp	DWORD [possession], 1
 	jne	touchdown_visitor
 	touchdown_home:
