@@ -885,7 +885,7 @@ drawboard:
 	push	'*'
 
 
-	print_the_board
+	print_the_board:
 	push	boardstr
 	call	printf
 	add	esp, 88
