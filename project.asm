@@ -26,13 +26,13 @@
 
 
 segment .data
-	fmt	db	"Read >%c<", 10, 0
 
 segment .bss
 	save_termios	resb	60
 	save_c_lflag	resb	4
 
 	; game state
+	gameover	resd	1
 	down		resd	1
 	fieldpos	resd	1
 	yardstogo	resd	1
@@ -44,6 +44,9 @@ segment .bss
 
 	playrunning	resd	1	; 1 = yes, 0 = no
 	lineofscrimmage	resd	1
+
+	offense_x	resd	1
+	offense_y	resd	1
 
 	; counters
 	timer_counter	resd	1
@@ -87,12 +90,17 @@ newgame:
 		call	usleep
 		add	esp, 4
 
-		call	check_for_input
+		call	process_input
+
+		cmp	DWORD [gameover], 1
+		je	end_game
 
 		call	decrement_timeremaining
 
 		jmp	eventloop
 
+
+	end_game:
 
 	leave
 	ret
@@ -108,6 +116,7 @@ newgame:
 initgame:
 	enter	0, 0
 
+	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
 	mov	DWORD [fieldpos], 20
 	mov	DWORD [yardstogo], 10
@@ -118,6 +127,9 @@ initgame:
 
 	mov	DWORD [playrunning], 0
 	mov	DWORD [lineofscrimmage], 20
+
+	mov	DWORD [offense_x], 0
+	mov	DWORD [offense_y], 1
 
 	mov	DWORD [direction], 1
 
@@ -155,75 +167,128 @@ decrement_timeremaining:
 
 ;------------------------------------------------------------------------------
 ;
-check_for_input:
+process_input:
 	enter	0, 0
 
 	call	get_key
 	cmp	al, -1
-	je	leave_check_for_input
-
-	; Got some input
+	je	leave_process_input
 
 	check_w:
 	cmp	al, 'w'
 	jne	check_s
-	mov	DWORD [playrunning], 1
-	jmp	leave_check_for_input
+	push	-1
+	push	0
+	jmp	call_update_offense_input
 
 	check_s:
 	cmp	al, 's'
 	jne	check_d
-	mov	DWORD [playrunning], 1
-	jmp	leave_check_for_input
+	push	1
+	push	0
+	jmp	call_update_offense_input
 
 	check_d:
 	cmp	al, 'd'
 	jne	check_a
+	push	0
 	push	1
-	call	update_fieldpos
-	add	esp, 4
-	mov	DWORD [playrunning], 1
-	jmp	leave_check_for_input
+	jmp	call_update_offense_input
 
 	check_a:
 	cmp	al, 'a'
-	jne	leave_check_for_input
+	jne	check_enter
+	push	0
 	push	-1
-	call	update_fieldpos
-	add	esp, 4
-	mov	DWORD [playrunning], 1
-	jmp	leave_check_for_input
+	jmp	call_update_offense_input
+
+	check_enter:
+	cmp	al, 13
+	jne	check_q
+	; do something for enter
+	jmp	leave_process_input
+
+	check_q:
+	cmp	al, 'q'
+	jne	leave_process_input
+	mov	DWORD [gameover], 1
+	jmp	leave_process_input
 
 
-	leave_check_for_input:
+	call_update_offense_input:
+	call	update_offense_pos
+	add	esp, 8
+	jmp	leave_process_input
+
+
+	leave_process_input:
 	leave
 	ret
 ;
 ;------------------------------------------------------------------------------
 
-update_fieldpos:
+;------------------------------------------------------------------------------
+;
+; void update_offense_pos(int deltaX, int deltaY)
+;
+; Updates fieldpos, offense_x, and offense_y
+;
+update_offense_pos:
 	enter	0, 0
 
-	push	eax
+	; [ebp + 12] : deltaY
+	; [ebp + 8]  : deltaX
 
+	push	eax
+	push	ebx
+	push	edx
+
+	mov	ebx, 10
+
+	mov	DWORD [playrunning], 1
+
+
+	update_offense_pos_x:
 	mov	eax, DWORD [direction]
 	mul	DWORD [ebp + 8]
 	add	eax, DWORD [fieldpos]
 
 	cmp	eax, DWORD [lineofscrimmage]
-	jl	leave_update_fieldpos
+	jl	update_offense_pos_y
 
 	cmp	eax, 100
-	jg	leave_update_fieldpos
+	jg	update_offense_pos_y
 
 	mov	DWORD [fieldpos], eax
 
-	leave_update_fieldpos:
+	mov	eax, 1
+	mul	DWORD [ebp + 8]
+	add	eax, DWORD [offense_x]
+	add	eax, ebx
+	xor	edx, edx
+	div	ebx
+	mov	DWORD [offense_x], edx
+
+
+	update_offense_pos_y:
+	mov	eax, DWORD [ebp + 12]
+	add	eax, DWORD [offense_y]
+	cmp	eax, 0
+	jl	leave_update_offense_pos
+	cmp	eax, 2
+	jg	leave_update_offense_pos
+	mov	DWORD [offense_y], eax
+
+
+	leave_update_offense_pos:
+	pop	edx
+	pop	ebx
 	pop	eax
 
 	leave
 	ret
-
+;
+;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
 ;
@@ -234,8 +299,7 @@ update_fieldpos:
 
 segment .data
 
-boardstr	db	10
-		db	"   ---------------------------------------------    ", 10
+boardstr	db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
 		db	" | |||   |   |   |   |   |   |   |   |   |   ||| |  ", 10
@@ -339,13 +403,64 @@ drawboard:
 	; down
 	push	DWORD [down]
 
+
+	; draw players
+	push	DWORD [offense_y]
+	push	DWORD [offense_x]
+	call	calc_player_offset
+	add	esp, 8
+
+	lea	ebx, [boardstr + eax]
+	mov	BYTE [ebx], 'X'
+
+
 	push	boardstr
 	call	printf
-	add	esp, 60
+	add	esp, 0
+
+
+	; clear players
+	mov	BYTE [ebx], ' '
+
 
 	pop	edx
 	pop	ebx
 	pop	eax
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int calc_player_offset(int X, int Y)
+;
+; Calculate byte offset in boardstr for a player at position X,Y
+;
+calc_player_offset:
+	enter	4, 0
+
+	; [ebp + 12] : Y
+	; [ebp + 8]  : X
+
+	push	ebx
+	push	edx
+
+	; Offset to offense position is 60 + Y*106 + X*4
+	mov	eax, DWORD [ebp + 12]
+	mov	ebx, 106
+	mul	ebx
+	mov	DWORD [ebp - 4], eax
+
+	mov	eax, DWORD [ebp + 8]
+	mov	ebx, 4
+	mul	ebx
+	add	eax, DWORD [ebp - 4]
+	add	eax, 60
+
+	pop	edx
+	pop	ebx
+
 	leave
 	ret
 ;
