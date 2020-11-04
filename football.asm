@@ -452,9 +452,15 @@ process_input:
 	je	leave_process_input
 
 
-
 	cmp	DWORD [hitenter], 1
-	je	check_enter
+	jne	check_w
+
+	; Did they hit enter
+	cmp	al, 10
+	jne	leave_process_input
+	mov	DWORD [hitenter], 0
+	jmp	leave_process_input
+
 
 	;
 	; w, a, s, d - offense player movement
@@ -482,7 +488,7 @@ process_input:
 
 	check_a:
 	cmp	al, 'a'
-	jne	check_enter
+	jne	check_q
 	push	0
 	push	-1
 	jmp	call_move_offense
@@ -493,12 +499,6 @@ process_input:
 	add	esp, 8
 	jmp	leave_process_input
 
-
-	check_enter:
-	cmp	al, 10
-	jne	check_q
-	mov	DWORD [hitenter], 0
-	jmp	leave_process_input
 
 
 	check_q:
