@@ -21,6 +21,7 @@
 %define F_GETFL		3
 %define F_SETFL		4
 
+%define	GAME_TIME	150	; length of a quarter
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
 
@@ -131,7 +132,7 @@ init_game:
 	mov	DWORD [homescore], 0
 	mov	DWORD [visitorscore], 0
 	mov	DWORD [quarter], 1
-	mov	DWORD [timeremaining], 150
+	mov	DWORD [timeremaining], GAME_TIME
 
 	mov	DWORD [hitenter], 0
 	mov	DWORD [playrunning], 0
@@ -404,7 +405,7 @@ update_game_state:
 	mov	eax, DWORD [direction]
 	neg	eax
 	mov	DWORD [direction], eax
-	mov	DWORD [timeremaining], 150
+	mov	DWORD [timeremaining], GAME_TIME
 	mov	DWORD [timer_counter], TIMER_COUNTER
 	call	init_player_positions
 	jmp	update_game_state_done
@@ -413,15 +414,17 @@ update_game_state:
 	mov	DWORD [down], 1
 	mov	DWORD [fieldpos], 20
 	mov	DWORD [yardstogo], 10
-	mov	DWORD [timeremaining], 150
+	mov	DWORD [timeremaining], GAME_TIME
 	mov	DWORD [lineofscrimmage], 20
 	mov	DWORD [direction], 1
 	mov	DWORD [possession], -1
 	mov	DWORD [timer_counter], TIMER_COUNTER
+	call	init_player_positions
 	jmp	update_game_state_done
 
 	state_game_over:
 	mov	DWORD [gameover], 1
+	mov	DWORD [quarter], 4
 	jmp	update_game_state_done
 
 
@@ -697,10 +700,16 @@ boardstr	db	"   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"   | %c HOME: %d%d | %c VISITOR: %d%d |                   ", 10
-		db	"   -------------------------------------            ", 10
-		db	"   | QUARTER: %d | TIME REMAINING: %d%d.%d |            ", 10
-		db	"   -------------------------------------            ", 10
+		db	"                                                    ", 10
+		db	"           %c HOME: %d%d   %c VISITOR: %d%d               ", 10
+		db	"                                                    ", 10
+		db	"           ---------------------------              ", 10
+		db	"           | QUARTER: %d | TIME: %d%d.%d |              ", 10
+		db	"           ---------------------------              ", 10
+		db	"                                                    ", 10
+		db	"   INPUTS  Movement: wasd                           ", 10
+		db	"           Kick: k (only on 4th down)               ", 10
+		db	"           Hit Enter after each play                ", 10
 		db	"                                                    ", 10
 		db	" State Variables                                    ", 10
 		db	" tackle: %d                                         ", 10
