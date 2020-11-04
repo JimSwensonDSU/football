@@ -24,6 +24,8 @@
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
 
+%define NUM_DEFENSE	5
+
 
 segment .data
 
@@ -43,10 +45,11 @@ segment .bss
 	direction	resd	1	; 1 = right, -1 = left
 
 	playrunning	resd	1	; 1 = yes, 0 = no
+	tackled		resd	1	; 1 = yes, 0 = no
 	lineofscrimmage	resd	1
 
-	offense_x	resd	1
-	offense_y	resd	1
+	offense		resd	2		; X, Y
+	defense		resd	2*NUM_DEFENSE	; N sets of X,Y
 
 	; counters
 	timer_counter	resd	1
@@ -126,10 +129,22 @@ initgame:
 	mov	DWORD [timeremaining], 150
 
 	mov	DWORD [playrunning], 0
+	mov	DWORD [tackled], 0
 	mov	DWORD [lineofscrimmage], 20
 
-	mov	DWORD [offense_x], 0
-	mov	DWORD [offense_y], 1
+	mov	DWORD [offense], 0
+	mov	DWORD [offense + 4], 1
+
+	mov	DWORD [defense], 3
+	mov	DWORD [defense + 4], 0
+	mov	DWORD [defense + 8], 3
+	mov	DWORD [defense + 12], 1
+	mov	DWORD [defense + 16], 3
+	mov	DWORD [defense + 20], 2
+	mov	DWORD [defense + 24], 5
+	mov	DWORD [defense + 28], 1
+	mov	DWORD [defense + 32], 8
+	mov	DWORD [defense + 36], 1
 
 	mov	DWORD [direction], 1
 
@@ -231,7 +246,7 @@ process_input:
 ;
 ; void update_offense_pos(int deltaX, int deltaY)
 ;
-; Updates fieldpos, offense_x, and offense_y
+; Updates fieldpos and offense
 ;
 update_offense_pos:
 	enter	0, 0
@@ -243,10 +258,14 @@ update_offense_pos:
 	push	ebx
 	push	edx
 
+	; Save current offense and fieldpos
+	push	DWORD [offense]
+	push	DWORD [offense + 4]
+	push	DWORD [fieldpos]
+
 	mov	ebx, 10
 
 	mov	DWORD [playrunning], 1
-
 
 	update_offense_pos_x:
 	mov	eax, DWORD [direction]
@@ -254,33 +273,39 @@ update_offense_pos:
 	add	eax, DWORD [fieldpos]
 
 	cmp	eax, DWORD [lineofscrimmage]
-	jl	update_offense_pos_y
+	jl	update_offense_pos_y	; Can't move before line of scrimmage
 
 	cmp	eax, 100
-	jg	update_offense_pos_y
+	jg	update_offense_pos_y	; Can't move past goal line
 
 	mov	DWORD [fieldpos], eax
 
 	mov	eax, 1
 	mul	DWORD [ebp + 8]
-	add	eax, DWORD [offense_x]
+	add	eax, DWORD [offense]
 	add	eax, ebx
 	xor	edx, edx
 	div	ebx
-	mov	DWORD [offense_x], edx
+	mov	DWORD [offense], edx
 
 
 	update_offense_pos_y:
 	mov	eax, DWORD [ebp + 12]
-	add	eax, DWORD [offense_y]
+	add	eax, DWORD [offense + 4]
 	cmp	eax, 0
 	jl	leave_update_offense_pos
 	cmp	eax, 2
 	jg	leave_update_offense_pos
-	mov	DWORD [offense_y], eax
+	mov	DWORD [offense + 4], eax
 
 
 	leave_update_offense_pos:
+
+	; Check if offense on same spot as a defender.  If so, it's a tackle.
+	pop	eax
+	pop	eax
+	pop	eax
+
 	pop	edx
 	pop	ebx
 	pop	eax
@@ -321,6 +346,7 @@ drawboard:
 
 	push	eax
 	push	ebx
+	push	ecx
 	push	edx
 
 	call	homecursor
@@ -405,8 +431,8 @@ drawboard:
 
 
 	; draw players
-	push	DWORD [offense_y]
-	push	DWORD [offense_x]
+	push	DWORD [offense + 4]
+	push	DWORD [offense]
 	call	calc_player_offset
 	add	esp, 8
 
@@ -425,6 +451,7 @@ drawboard:
 
 	pop	edx
 	pop	ebx
+	pop	ecx
 	pop	eax
 	leave
 	ret
