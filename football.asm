@@ -45,9 +45,10 @@ segment .bss
 	direction	resd	1	; 1 = right, -1 = left
 
 	playrunning	resd	1	; 1 = yes, 0 = no
-	tackled		resd	1	; 1 = yes, 0 = no
+	tackle		resd	1	; 1 = yes, 0 = no
 	lineofscrimmage	resd	1
 
+	; location of players
 	offense		resd	2		; X, Y
 	defense		resd	2*NUM_DEFENSE	; N sets of X,Y
 
@@ -129,13 +130,14 @@ initgame:
 	mov	DWORD [timeremaining], 150
 
 	mov	DWORD [playrunning], 0
-	mov	DWORD [tackled], 0
+	mov	DWORD [tackle], 0
 	mov	DWORD [lineofscrimmage], 20
 
 	mov	DWORD [offense], 0
 	mov	DWORD [offense + 4], 1
 
-	mov	DWORD [defense],      3
+	mov	DWORD [defense],      1
+	;mov	DWORD [defense],      3
 	mov	DWORD [defense + 4],  0
 
 	mov	DWORD [defense + 8],  3
@@ -186,6 +188,10 @@ decrement_timeremaining:
 
 ;------------------------------------------------------------------------------
 ;
+; void process_input()
+;
+; Process input from user.
+;
 process_input:
 	enter	0, 0
 
@@ -193,33 +199,46 @@ process_input:
 	cmp	al, -1
 	je	leave_process_input
 
+
+
+	;
+	; w, a, s, d - offense player movement
+	;
+
 	check_w:
 	cmp	al, 'w'
 	jne	check_s
 	push	-1
 	push	0
-	jmp	call_update_offense_input
+	jmp	call_move_offense
 
 	check_s:
 	cmp	al, 's'
 	jne	check_d
 	push	1
 	push	0
-	jmp	call_update_offense_input
+	jmp	call_move_offense
 
 	check_d:
 	cmp	al, 'd'
 	jne	check_a
 	push	0
 	push	1
-	jmp	call_update_offense_input
+	jmp	call_move_offense
 
 	check_a:
 	cmp	al, 'a'
 	jne	check_enter
 	push	0
 	push	-1
-	jmp	call_update_offense_input
+	jmp	call_move_offense
+
+	call_move_offense:
+	mov	DWORD [playrunning], 1
+	call	move_offense
+	add	esp, 8
+	jmp	leave_process_input
+
 
 	check_enter:
 	cmp	al, 13
@@ -227,17 +246,13 @@ process_input:
 	; do something for enter
 	jmp	leave_process_input
 
+
 	check_q:
 	cmp	al, 'q'
 	jne	leave_process_input
 	mov	DWORD [gameover], 1
 	jmp	leave_process_input
 
-
-	call_update_offense_input:
-	call	update_offense_pos
-	add	esp, 8
-	jmp	leave_process_input
 
 
 	leave_process_input:
@@ -248,28 +263,38 @@ process_input:
 
 ;------------------------------------------------------------------------------
 ;
-; void update_offense_pos(int deltaX, int deltaY)
+; void move_offense(int deltaX, int deltaY)
 ;
-; Updates fieldpos and offense
+; Move the offense by deltaX, deltaY.  Will check for a tackle.
 ;
-update_offense_pos:
-	enter	0, 0
+move_offense:
+	enter	12, 0
 
 	; [ebp + 12] : deltaY
 	; [ebp + 8]  : deltaX
+	;
+	; [ebp - 4]   : save offense X
+	; [ebp - 8]   : save offense Y
+	; [ebp - 12]  : save fieldpos
 
 	push	eax
 	push	ebx
+	push	ecx
 	push	edx
 
+
 	; Save current offense and fieldpos
-	push	DWORD [offense]
-	push	DWORD [offense + 4]
-	push	DWORD [fieldpos]
+	mov	eax, DWORD [offense]		; offense X
+	mov	DWORD [ebp - 4], eax
+
+	mov	eax, DWORD [offense + 4]	; offense Y
+	mov	DWORD [ebp - 8], eax
+
+	mov	eax, DWORD [fieldpos]		; fieldpos
+	mov	DWORD [ebp - 12], eax
+
 
 	mov	ebx, 10
-
-	mov	DWORD [playrunning], 1
 
 	update_offense_pos_x:
 	mov	eax, DWORD [direction]
@@ -297,20 +322,53 @@ update_offense_pos:
 	mov	eax, DWORD [ebp + 12]
 	add	eax, DWORD [offense + 4]
 	cmp	eax, 0
-	jl	leave_update_offense_pos
+	jl	leave_move_offense
 	cmp	eax, 2
-	jg	leave_update_offense_pos
+	jg	leave_move_offense
 	mov	DWORD [offense + 4], eax
 
 
-	leave_update_offense_pos:
+	leave_move_offense:
 
-	; Check if offense on same spot as a defender.  If so, it's a tackle.
-	pop	eax
-	pop	eax
-	pop	eax
+
+	; Check if offense on same spot as a defender.  If so, it's a tackle, and
+	; we should restore the saved values for offense and fieldpos.
+
+	mov	DWORD [tackle], 0
+
+	mov	eax, DWORD [offense]		; offense X
+	mov	ebx, DWORD [offense + 4]	; offense Y
+	mov	ecx, NUM_DEFENSE
+	check_tackle:
+	cmp	eax, DWORD [defense + 8*ecx - 8]	; defense X
+	jne	next_check_tackle
+	cmp	ebx, DWORD [defense + 8*ecx - 4]	; defense Y
+	jne	next_check_tackle
+	mov	DWORD [tackle], 1
+	next_check_tackle:
+	loop	check_tackle
+
+
+	cmp	DWORD [tackle], 1
+	jne	move_offense_done
+	mov	DWORD [playrunning], 0
+
+	; restore the saves values for offense and fieldpos
+
+	mov	eax, DWORD [ebp - 4]		; offense X
+	mov	DWORD [offense], eax
+
+	mov	eax, DWORD [ebp - 8]		; offense Y
+	mov	DWORD [offense + 4], eax
+
+	mov	eax, DWORD [ebp - 12]		; fieldpos
+	mov	DWORD [fieldpos], eax
+
+
+	move_offense_done:
 
 	pop	edx
+	pop	ecx
 	pop	ebx
 	pop	eax
 
@@ -343,6 +401,9 @@ boardstr	db	"   ---------------------------------------------    ", 10
 		db	"   -------------------------------------            ", 10
 		db	"   | QUARTER: %d | TIME REMAINING: %d%d.%d |            ", 10
 		db	"   -------------------------------------            ", 10
+		db	"                                                    ", 10
+		db	" tackle: %d                                         ", 10
+		db	" playrunning: %d                                    ", 10
 		db	0
 
 drawboard:
@@ -389,6 +450,10 @@ drawboard:
 	call	homecursor
 
 	mov	ebx, 10
+
+	; some state info
+	push	DWORD [playrunning]
+	push	DWORD [tackle]
 
 	; time remaining
 	xor	edx, edx
@@ -469,7 +534,7 @@ drawboard:
 
 	push	boardstr
 	call	printf
-	add	esp, 60
+	add	esp, 68
 
 
 
