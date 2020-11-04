@@ -126,7 +126,7 @@ init_game:
 
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
-	mov	DWORD [fieldpos], 20
+	mov	DWORD [fieldpos], 98
 	mov	DWORD [yardstogo], 10
 	mov	DWORD [homescore], 0
 	mov	DWORD [visitorscore], 0
@@ -688,7 +688,8 @@ drawtackle:
 
 segment .data
 
-boardstr	db	"   ---------------------------------------------    ", 10
+boardstr	db	"           %c HOME: %d%d   %c VISITOR: %d%d               ", 10
+		db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
 		db	" | |||   |   |   |   |   |   |   |   |   |   ||| |  ", 10
@@ -864,10 +865,19 @@ drawboard:
 	; down
 	push	DWORD [down]
 
+	; visitor
+	push	8
+	push	8
+	push	'*'
+
+	; home
+	push	9
+	push	9
+	push	'*'
 
 	push	boardstr
 	call	printf
-	add	esp, 88
+	add	esp, 112
 
 
 
@@ -915,7 +925,7 @@ calc_player_offset:
 	mov	ebx, 4
 	mul	ebx
 	add	eax, DWORD [ebp - 4]
-	add	eax, 60
+	add	eax, 119	; was 60
 
 	pop	edx
 	pop	ebx
