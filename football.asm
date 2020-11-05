@@ -32,7 +32,7 @@
 
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
-%define DEFENSE_COUNTER	5	; Number of ticks between moving defense
+%define DEFENSE_COUNTER	10	; Number of ticks between moving defense
 
 %define NUM_DEFENSE	5
 
