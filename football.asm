@@ -9,6 +9,7 @@
 ; Xcombine the loops in the drawboard
 ; input for setting difficulty
 
+
 ;
 ; Values for system/library calls
 ;
@@ -54,6 +55,7 @@
 %define	KEY_KICK	'k'	;
 %define	KEY_QUIT	'q'	;
 %define	KEY_ENTER	10	;
+%define	KEY_DEBUG	'D'	; toggle debug mode
 
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
@@ -96,6 +98,9 @@ segment .bss
 	; counters
 	defense_counter	resd	1
 	timer_counter	resd	1
+
+	; debug_on - displays state variables
+	debug_on		resd	1	; 1 = yes, 0 = no
 
 segment .text
 	global  asm_main
@@ -183,6 +188,8 @@ init_game:
 
 	mov	DWORD [timer_counter], TIMER_COUNTER
 	mov	DWORD [defense_counter], DEFENSE_COUNTER
+
+	mov	DWORD [debug_on], 0
 
 	call	init_player_positions
 
@@ -554,10 +561,22 @@ update_game_state:
 process_input:
 	enter	0, 0
 
+	push	eax
+
 	; Check for input
 	call	get_key
 	cmp	al, -1
 	je	leave_process_input
+
+
+	; Checking for debug toggle
+	check_debug:
+		cmp	al, KEY_DEBUG
+		jne	check_quit
+		mov	eax, 1
+		sub	eax, DWORD [debug_on]
+		mov	DWORD [debug_on], eax
+		jmp	leave_process_input
 
 
 	;
@@ -652,6 +671,9 @@ process_input:
 
 
 	leave_process_input:
+
+	pop	eax
+
 	leave
 	ret
 ;
@@ -1327,8 +1349,10 @@ boardstr	db	"                                                    ", 10
 		db	"         Quit: %c                                    ", 10
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
-		db	"                                                    ", 10
-		db	"                                                    ", 10
+		db	0x1b, "[0J" ; clear to end of screen
+		db	0
+
+debugstr	db	"                                                    ", 10
 		db	"----------------------------------------------------", 10
 		db	"                                                    ", 10
 		db	"   State Variables                                  ", 10
@@ -1400,15 +1424,6 @@ drawboard:
 	;
 	; Push all the parameters ...
 	;
-
-	; some state info
-	push	DWORD [direction]
-	push	DWORD [possession]
-	push	DWORD [lineofscrimmage]
-	push	DWORD [fieldpos]
-	push	DWORD [requireenter]
-	push	DWORD [playrunning]
-	push	DWORD [tackle]
 
 	; Keys
 	push	KEY_QUIT
@@ -1517,7 +1532,7 @@ drawboard:
 	print_the_board:
 	push	boardstr
 	call	printf
-	add	esp, 120
+	add	esp, 92
 
 
 
@@ -1531,10 +1546,33 @@ drawboard:
 	loop	restore_board
 
 
+	;
+	; Debug info
+	;
+	cmp	DWORD [debug_on], 1
+	jne	leave_drawboard
+
+	; some state info
+	push	DWORD [direction]
+	push	DWORD [possession]
+	push	DWORD [lineofscrimmage]
+	push	DWORD [fieldpos]
+	push	DWORD [requireenter]
+	push	DWORD [playrunning]
+	push	DWORD [tackle]
+
+	push	debugstr
+	call	printf
+	add	esp, 32
+
+
+	leave_drawboard:
+
 	pop	edx
 	pop	ecx
 	pop	ebx
 	pop	eax
+
 	leave
 	ret
 ;
