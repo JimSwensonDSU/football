@@ -4,7 +4,7 @@
 ; Make a "change possession"  & "change direction" routines
 ; move check_q below check_k, or maybe to top?
 ; *define for field width
-; redo deltas in move_defense
+; *redo deltas in move_defense
 ; combine the loops in the drawboard
 
 ;
@@ -976,7 +976,7 @@ move_defense:
 	; Calculate deltaX, deltaY to offense
 	calc_deltaX:
 		mov	eax, DWORD [offense]	; offenseX
-		cmp	eax, DWORD [ebp - 4]
+		cmp	eax, DWORD [ebp - 4]	; defenseX
 		je	equalX
 		jg	greaterX
 		mov	DWORD [ebp - 16], 1		; defender to right of offense
@@ -991,10 +991,10 @@ move_defense:
 
 	calc_deltaY:
 		mov	eax, DWORD [offense + 4]	; offenseY
-		cmp	eax, DWORD [ebp - 8]
+		cmp	eax, DWORD [ebp - 8]		; defenseY
 		je	equalY
 		jg	greaterY
-		mov	DWORD [ebp - 20], 1		; defender above offense
+		mov	DWORD [ebp - 20], 1		; defender below offense
 		jmp	pick_move
 
 		equalY:
@@ -1002,11 +1002,11 @@ move_defense:
 			jmp	pick_move
 
 		greaterY:
-			mov	DWORD [ebp - 20], -1	; defender below offense
+			mov	DWORD [ebp - 20], -1	; defender above offense
 
 
 	;
-	; If only one of deltaX, deltaY is  non-zero, use the non-zero.
+	; If only one of deltaX, deltaY is non-zero, use the non-zero.
 	; Otherwise pick at random.
 	;
 	pick_move:
