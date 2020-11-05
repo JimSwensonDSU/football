@@ -53,10 +53,6 @@
 %define KEY_DOWN	's'
 %define KEY_LEFT	'a'
 %define KEY_RIGHT	'd'
-%define KEY_VI_UP	'k'
-%define KEY_VI_DOWN	'j'
-%define KEY_VI_LEFT	'h'
-%define KEY_VI_RIGHT	'l'
 %define	KEY_KICK	'k'
 %define	KEY_QUIT	'Q'	; uppercase to avoid accidential hits
 %define	KEY_ENTER	10
@@ -621,13 +617,10 @@ segment .data
 	; Using DWORD for each of arithmetic.
 	;
 	move_table	dd	KEY_UP,		0,	-1
-			dd	KEY_VI_UP,	0,	-1
 			dd	KEY_DOWN,	0,	1
-			dd	KEY_VI_DOWN,	0,	1
+			dd	KEY_DOWN,	0,	1
 			dd	KEY_RIGHT,	1,	0
-			dd	KEY_VI_RIGHT,	1,	0
 			dd	KEY_LEFT,	-1,	0
-			dd	KEY_VI_LEFT,	-1,	0
 			dd	0
 
 process_input:
