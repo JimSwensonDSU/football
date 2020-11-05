@@ -1,6 +1,6 @@
 ; Make a "hit enter" routine
 ; player movement table
-; Make a "score" routine
+; *Make a "score" routine
 ; Make a "change possession"  & "change direction" routines
 ; move check_q below check_k, or maybe to top?
 ; define for field width
@@ -358,21 +358,13 @@ update_game_state:
 		mov	DWORD [requireenter], 1
 		mov	DWORD [playrunning], 0
 
-		cmp	DWORD [possession], 1	; who has the ball
-		jne	touchdown_visitor
+		; Increment score
+		push	TOUCHDOWN_PTS
+		call	score
+		add	esp, 4
 
-		; Home team score
-		touchdown_home:
-		add	DWORD [homescore], TOUCHDOWN_PTS
-		jmp	touchdown_next;
-
-		; Visitor team score
-		touchdown_visitor:
-		add	DWORD [visitorscore], TOUCHDOWN_PTS
-
-		touchdown_next:
-			call	drawboard
-			call	drawtouchdown
+		call	drawboard
+		call	drawtouchdown
 
 		; Loop until user hits enter
 		state_touchdown_loop:
@@ -696,17 +688,9 @@ do_fieldgoal:
 		mov	DWORD [lineofscrimmage], FIELDPOS
 
 		; Increment score
-		cmp	DWORD [possession], 1
-		jne	fieldgoal_visitor
-
-		fieldgoal_home:
-			add	DWORD [homescore], FIELDGOAL_PTS
-			jmp	fieldgoal_next;
-
-		fieldgoal_visitor:
-			add	DWORD [visitorscore], FIELDGOAL_PTS
-
-		fieldgoal_next:
+		push	FIELDGOAL_PTS
+		call	score
+		add	esp, 4
 		jmp	leave_do_fieldgoal
 
 
@@ -1114,6 +1098,44 @@ move_defense:
 	leave
 	ret
 
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void score(int n)
+;
+; Add n to team with possession.
+;
+score:
+	enter	0, 0
+
+	push	eax
+
+	; Arguments:
+	; [ebp + 8]  : n
+
+	mov	eax, DWORD [ebp + 8]	; eax = n
+
+	cmp	DWORD [possession], 1	; who has the ball
+	jne	score_visitor
+
+	; Home team score
+	score_home:
+	add	DWORD [homescore], eax
+	jmp	leave_score;
+
+	; Visitor team score
+	score_visitor:
+	add	DWORD [visitorscore], eax
+
+
+	leave_score:
+
+	pop	eax
+
+	leave
+	ret
 ;
 ;------------------------------------------------------------------------------
 
