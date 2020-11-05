@@ -636,6 +636,18 @@ process_input:
 	je	leave_process_input
 
 
+	; Check for skill level change
+	check_skill_level:
+		cmp	al, '0'
+		jl	check_debug
+		cmp	al, '9'
+		jg	check_debug
+		and	eax, 0x000000ff
+		sub	al, '0'
+		mov	DWORD [skilllevel], eax
+		jmp	leave_process_input
+
+
 	; Checking for debug toggle
 	check_debug:
 		cmp	al, KEY_DEBUG
@@ -1345,18 +1357,16 @@ boardstr	db	"                                                    ", 10
 debugstr	db	"                                                    ", 10
 		db	"----------------------------------------------------", 10
 		db	"                                                    ", 10
-		db	"   State Variables       Hit 0 - 9 to change        ", 10
-		db	" -------------------     the skill level.           ", 10
-		db	"          tackle: %d                                ", 10
-		db	"     playrunning: %d       0 - easiest (default)    ", 10
-		db	"    requireenter: %d       9 - hardest              ", 10
+		db	"   State Variables       Hit 0 - 9 to change skill  ", 10
+		db	" -------------------                                ", 10
+		db	"          tackle: %d       0 - easy (default)       ", 10
+		db	"     playrunning: %d       5 - challenging          ", 10
+		db	"    requireenter: %d       9 - hurt me plenty       ", 10
 		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
 		db	"      possession: %d                                ", 10
 		db	"       direction: %d                                ", 10
 		db	"      skilllevel: %d                                ", 10
-		db	"                                                    ", 10
-		db	"----------------------------------------------------", 10
 		db	0
 
 drawboard:
