@@ -819,13 +819,11 @@ move_offense:
 		mov	DWORD [fieldpos], eax
 
 		; Update the offenseX position as well
-;Could combined these two lines into a mov eax, DWORD [ebp + 8]
-		mov	eax, 1
-		mul	DWORD [ebp + 8]		; eax = deltaX
+		mov	eax, DWORD [ebp + 8]	; eax = deltaX
 		add	eax, DWORD [offense]	; eax = offenseX + deltaX
 		mov	ebx, FIELD_LENGTH
 		add	eax, ebx		; eax = FIELDLENGTH + offenseX + deltaX
-		; mod FIELDLENGTH
+		; Get eax % FIELDLENGTH
 		xor	edx, edx
 		div	ebx
 		mov	DWORD [offense], edx	; new offenseX position
