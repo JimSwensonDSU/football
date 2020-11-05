@@ -363,7 +363,7 @@ update_game_state:
 			cmp	DWORD [requireenter], 1
 			je	state_fieldgoal_loop
 			mov	DWORD [fieldgoal], 0
-			jmp	leave_update_game_state
+			jmp	state_end_of_quarter
 
 
 	;
@@ -390,7 +390,7 @@ update_game_state:
 			call	process_input
 			cmp	DWORD [requireenter], 1
 			je	state_punt_loop
-			jmp	leave_update_game_state
+			jmp	state_end_of_quarter
 
 
 	;
@@ -442,7 +442,7 @@ update_game_state:
 
 		call	init_player_positions
 
-		jmp	leave_update_game_state
+		jmp	state_end_of_quarter
 
 
 	;
@@ -496,7 +496,7 @@ update_game_state:
 		mov	eax, DWORD [fieldpos]
 		mov	DWORD [lineofscrimmage], eax
 		call	init_player_positions
-		jmp	leave_update_game_state
+		jmp	state_end_of_quarter
 	
 
 		; They made a first down
@@ -506,7 +506,7 @@ update_game_state:
 			mov	DWORD [down], 1
 			mov	DWORD [yardstogo], 10
 			call	init_player_positions
-			jmp	leave_update_game_state
+			jmp	state_end_of_quarter
 
 		; Turnover
 		turnover:
@@ -520,23 +520,23 @@ update_game_state:
 			mov	DWORD [down], 1
 			mov	DWORD [yardstogo], 10
 			call	init_player_positions
-			jmp	leave_update_game_state
+			jmp	state_end_of_quarter
 	
 
 		; Placeholder for additional functionality ...
 		state_something_else:
-			jmp	leave_update_game_state
+			jmp	state_end_of_quarter
 
 
 
 	; Check if quarter is over if a play is not running
-	leave_update_game_state:
+	state_end_of_quarter:
 
 		cmp	DWORD [playrunning], 1
-		je	update_game_state_done
+		je	leave_update_game_state
 
 		cmp	DWORD [timeremaining], 0
-		jg	update_game_state_done
+		jg	leave_update_game_state
 
 
 		; Done with quarter
@@ -560,7 +560,7 @@ update_game_state:
 			mov	DWORD [timer_counter], TIMER_COUNTER
 			call	reset_defense_counter
 			call	init_player_positions
-			jmp	update_game_state_done
+			jmp	leave_update_game_state
 
 		; Moving to 3rd quarter
 		;   - visitor possession (possession = -1)
@@ -580,15 +580,15 @@ update_game_state:
 			mov	DWORD [timer_counter], TIMER_COUNTER
 			call	reset_defense_counter
 			call	init_player_positions
-			jmp	update_game_state_done
+			jmp	leave_update_game_state
 
 		state_game_over:
 			mov	DWORD [gameover], 1
 			mov	DWORD [quarter], 4
-			jmp	update_game_state_done
+			jmp	leave_update_game_state
 
 
-	update_game_state_done:
+	leave_update_game_state:
 	pop	eax
 
 	leave
@@ -921,13 +921,15 @@ move_offense:
 		mov	eax, DWORD [ebp + 12]		; eax = deltaY
 		add	eax, DWORD [offense + 4]	; eax = offenseY + deltaY
 
-		; Can't move bove field
+		; Can't move above field
 		cmp	eax, 0
-		jl	leave_move_offense
+		jl	check_for_tackle
 
 		; Can't move below field
 		cmp	eax, FIELD_WIDTH
-		jge	leave_move_offense
+		jge	check_for_tackle
+
+		; Y move is ok
 		mov	DWORD [offense + 4], eax	; new offenseY position
 
 
@@ -935,7 +937,7 @@ move_offense:
 	; Check if offense on same spot as a defender.  If so, it's a tackle, and
 	; we should restore the saved values for offense and fieldpos.
 	;
-	leave_move_offense:
+	check_for_tackle:
 
 		mov	DWORD [tackle], 0
 
@@ -956,7 +958,7 @@ move_offense:
 
 		; Tacked?
 		cmp	DWORD [tackle], 1
-		jne	move_offense_done
+		jne	leave_move_offense
 
 		; Offense player is tackled
 		mov	DWORD [playrunning], 0
@@ -973,7 +975,7 @@ move_offense:
 		mov	DWORD [fieldpos], eax
 
 
-	move_offense_done:
+	leave_move_offense:
 
 	pop	edx
 	pop	ecx
