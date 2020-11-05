@@ -1,8 +1,9 @@
-; Make a "hit enter" routine
+; XMake a "hit enter" routine
 ; player movement table
 ; *Make a "score" routine
 ; *Make a "change possession"  & "change direction" routines
-; move check_q below check_k, or maybe to top?
+; *move check_q below check_k, or maybe to top?
+; defines for KEYS
 ; *define for field width
 ; *redo deltas in move_defense
 ; Xcombine the loops in the drawboard
@@ -304,7 +305,6 @@ update_game_state:
 		fg_miss:
 		call	drawfieldgoalmiss
 
-;Could probably eliminate these wait loops
 		; Loop until user hits enter
 		state_fieldgoal_loop:
 			call	process_input
@@ -552,14 +552,28 @@ process_input:
 	je	leave_process_input
 
 
-	; Is user required to hit enter to continue?
-	cmp	DWORD [requireenter], 1
-	jne	check_w
+	;
+	; Checking for quit
+	;
+	; q - Quit
+	;
+	check_q:
+		cmp	al, 'q'
+		jne	check_enter
+		mov	DWORD [gameover], 1
+		mov	DWORD [requireenter], 0
+		jmp	leave_process_input
 
-	cmp	al, 10
-	jne	leave_process_input
-	mov	DWORD [requireenter], 0
-	jmp	leave_process_input
+
+	; Is user required to hit enter?
+	check_enter:
+		cmp	DWORD [requireenter], 1
+		jne	check_w
+
+		cmp	al, 10
+		jne	leave_process_input
+		mov	DWORD [requireenter], 0
+		jmp	leave_process_input
 
 
 	;
@@ -591,7 +605,7 @@ process_input:
 
 	check_a:
 		cmp	al, 'a'
-		jne	check_q
+		jne	check_k
 		push	0	; Y no move
 		push	-1	; X left
 		jmp	call_move_offense
@@ -601,19 +615,6 @@ process_input:
 		mov	DWORD [playrunning], 1
 		call	move_offense
 		add	esp, 8
-		jmp	leave_process_input
-
-
-
-	;
-	; Checking for quit
-	;
-	; q - Quit
-	;
-	check_q:
-		cmp	al, 'q'
-		jne	check_k
-		mov	DWORD [gameover], 1
 		jmp	leave_process_input
 
 
