@@ -8,6 +8,7 @@
 ; *redo deltas in move_defense
 ; Xcombine the loops in the drawboard
 ; input for setting difficulty
+; *make a splash screen routine
 
 
 ;
@@ -65,6 +66,12 @@
 
 
 segment .data
+
+	msg_touchdown		db	"!!! TOUCHDOWN !!!!", 0
+	msg_fieldgoalgood	db	"!!! FIELD GOAL !!!!", 0
+	msg_fieldgoalmiss	db	"FIELD GOAL MISSED", 0
+	msg_tackle		db	"TACKLED", 0
+	msg_punt		db	"PUNTED", 0
 
 segment .bss
 	; save terminal/stdin settings
@@ -313,12 +320,16 @@ update_game_state:
 		je	fg_miss
 
 		; Field goal was good
-		call	drawfieldgoalgood
+		push	msg_fieldgoalgood
+		call	drawsplash
+		add	esp, 4
 		jmp	state_fieldgoal_loop
 
 		; Field goal missed
 		fg_miss:
-		call	drawfieldgoalmiss
+		push	msg_fieldgoalmiss
+		call	drawsplash
+		add	esp, 4
 
 		; Loop until user hits enter
 		state_fieldgoal_loop:
@@ -344,7 +355,9 @@ update_game_state:
 		mov	DWORD [punt], 0
 
 		call	drawboard
-		call	drawpunt
+		push	msg_punt
+		call	drawsplash
+		add	esp, 4
 
 		; Loop until user hits enter
 		state_punt_loop:
@@ -382,7 +395,9 @@ update_game_state:
 		add	esp, 4
 
 		call	drawboard
-		call	drawtouchdown
+		push	msg_touchdown
+		call	drawsplash
+		add	esp, 4
 
 		; Loop until user hits enter
 		state_touchdown_loop:
@@ -424,7 +439,10 @@ update_game_state:
 		; It's a tackle
 		mov	DWORD [requireenter], 1
 		call	drawboard
-		call	drawtackle
+
+		push	msg_tackle
+		call	drawsplash
+		add	esp, 4
 
 		; Loop until user hits enter
 		state_tackle_loop:
@@ -1167,13 +1185,15 @@ switch_team:
 
 ;------------------------------------------------------------------------------
 ;
-; void drawtouchdown()
+; void drawsplash(char *s)
 ;
-; Draw the touchdown splash screen
+; Draw a splash screen with given message s.
+; Will center the message.
 ;
+%define	MAX_S_LEN	31
 segment .data
 
-touchdownstr	db	10
+splashstr	db	10
 		db	10
 		db	10
 		db	10
@@ -1181,150 +1201,75 @@ touchdownstr	db	10
 		db	"   ---------------------------------------------    ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"\  ||-   -                               -   -||  / ", 10
-		db	" | |||   |       !!! TOUCHDOWN !!!!      |   ||| |  ", 10
+		db	" | |||   |               *               |   ||| |  ", 10
 		db	"/  ||-   -                               -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	10, 10, 10, 10, 10, 10, 10, 10, 10
 		db	0
-drawtouchdown:
-	enter	0, 0
+drawsplash:
+	enter	8, 0
+
+	pusha
+
+	; Arguments:
+	; [ebp + 8] : s
+
+	; Local vars:
+	; [ebp - 4] : Location of the * in the splashstr
+	; [ebp - 8] : Length of s / 2
+
+	; Find offset to the center of the message line (search for *)
+	mov	edi, splashstr
+	mov	ecx, 0FFFFFFFFh
+	mov	al, '*'
+	cld
+	repnz	scasb
+	dec	edi
+
+	; edi points to the * in splashstr
+	mov	DWORD [ebp - 4], edi
+
+	; Calculate length of s
+	mov	edi, [ebp + 8]
+	;mov	ecx, 0FFFFFFFFh
+	mov	ecx, MAX_S_LEN+1
+	xor	al, al
+	cld
+	repnz	scasb
+	;mov	edx, 0FFFFFFFEh
+	mov	edx, MAX_S_LEN
+	sub	edx, ecx	; edx = length of s
+	mov	ecx, edx
+	shr	ecx, 1		; ecx = length of s / 2
+	mov	DWORD [ebp - 8], ecx
+
+	; Copy s into the splashstr
+	mov	esi, [ebp + 8]
+	mov	edi, [ebp - 4]
+	sub	edi, ecx
+	mov	ecx, edx
+	cld
+	rep	movsb
+
+	; print the splash screen
 	call	homecursor
-	push	touchdownstr
+	push	splashstr
 	call	printf
 	add	esp, 4
-	leave
-	ret
-;
-;------------------------------------------------------------------------------
 
-;------------------------------------------------------------------------------
-;
-; void drawfieldgoalgood()
-;
-; Draw the field goal good splash screen
-;
-segment .data
+	; restore splashstr
+	mov	edi, DWORD [ebp - 4]
+	sub	edi, DWORD [ebp - 8]
+	mov	ecx, edx
+	mov	al, ' '
+	cld
+	rep	stosb
+	mov	edi, DWORD [ebp - 4]
+	mov	BYTE [edi], '*'
 
-fggoodstr	db	10
-		db	10
-		db	10
-		db	10
-		db	10
-		db	"   ---------------------------------------------    ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"\  ||-   -                               -   -||  / ", 10
-		db	" | |||   |       !!! FIELD GOAL !!!!     |   ||| |  ", 10
-		db	"/  ||-   -                               -   -||  \ ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"   ---------------------------------------------    ", 10
-		db	10, 10, 10, 10, 10, 10, 10, 10, 10
-		db	0
-drawfieldgoalgood:
-	enter	0, 0
-	call	homecursor
-	push	fggoodstr
-	call	printf
-	add	esp, 4
-	leave
-	ret
-;
-;------------------------------------------------------------------------------
+	popa
 
-;------------------------------------------------------------------------------
-;
-; void drawfieldgoalmiss()
-;
-; Draw the field goal miss splash screen
-;
-segment .data
-
-fgmissstr	db	10
-		db	10
-		db	10
-		db	10
-		db	10
-		db	"   ---------------------------------------------    ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"\  ||-   -                               -   -||  / ", 10
-		db	" | |||   |        FIELD GOAL MISSED      |   ||| |  ", 10
-		db	"/  ||-   -                               -   -||  \ ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"   ---------------------------------------------    ", 10
-		db	10, 10, 10, 10, 10, 10, 10, 10, 10
-		db	0
-drawfieldgoalmiss:
-	enter	0, 0
-	call	homecursor
-	push	fgmissstr
-	call	printf
-	add	esp, 4
-	leave
-	ret
-;
-;------------------------------------------------------------------------------
-
-;------------------------------------------------------------------------------
-;
-; void drawtackle()
-;
-; Draw the tackle splash screen
-;
-segment .data
-
-tacklestr	db	10
-		db	10
-		db	10
-		db	10
-		db	10
-		db	"   ---------------------------------------------    ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"\  ||-   -                               -   -||  / ", 10
-		db	" | |||   |            TACKLED            |   ||| |  ", 10
-		db	"/  ||-   -                               -   -||  \ ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"   ---------------------------------------------    ", 10
-		db	10, 10, 10, 10, 10, 10, 10, 10, 10
-		db	0
-drawtackle:
-	enter	0, 0
-	call	homecursor
-	push	tacklestr
-	call	printf
-	add	esp, 4
-	leave
-	ret
-;
-;------------------------------------------------------------------------------
-
-;------------------------------------------------------------------------------
-;
-; void drawpunt()
-;
-; Draw the punt splash screen
-;
-segment .data
-
-puntstr		db	10
-		db	10
-		db	10
-		db	10
-		db	10
-		db	"   ---------------------------------------------    ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"\  ||-   -                               -   -||  / ", 10
-		db	" | |||   |            PUNTED             |   ||| |  ", 10
-		db	"/  ||-   -                               -   -||  \ ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"   ---------------------------------------------    ", 10
-		db	10, 10, 10, 10, 10, 10, 10, 10, 10
-		db	0
-drawpunt:
-	enter	0, 0
-	call	homecursor
-	push	puntstr
-	call	printf
-	add	esp, 4
 	leave
 	ret
 ;
