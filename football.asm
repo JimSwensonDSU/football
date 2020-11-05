@@ -1,5 +1,5 @@
 ; XMake a "hit enter" routine
-; player movement table
+; *player movement table
 ; *Make a "score" routine
 ; *Make a "change possession"  & "change direction" routines
 ; *move check_q below check_k, or maybe to top?
@@ -49,13 +49,14 @@
 %define	MAX_PUNT	60	; maximum punt distance
 %define	GAME_TIME	150	; length of a quarter
 
-%define KEY_UP		'w'	;
-%define KEY_DOWN	's'	;
-%define KEY_LEFT	'a'	;
-%define KEY_RIGHT	'd'	; input keys
-%define	KEY_KICK	'k'	;
-%define	KEY_QUIT	'q'	;
-%define	KEY_ENTER	10	;
+; input keys
+%define KEY_UP		'w'
+%define KEY_DOWN	's'
+%define KEY_LEFT	'a'
+%define KEY_RIGHT	'd'
+%define	KEY_KICK	'k'
+%define	KEY_QUIT	'Q'	; uppercase to avoid accidential hits
+%define	KEY_ENTER	10
 %define	KEY_DEBUG	'v'	; toggle debug mode
 
 %define TICK		100000	; 1/10th of a second
@@ -576,10 +577,32 @@ update_game_state:
 ;
 ; Process input from user.
 ;
+segment .data
+
+	; Player movement table
+	;
+	; Rows of the form:
+	;
+	;    key, deltaX, deltaY
+	;
+	;    key - key to press
+	; deltaX - change to offenseX
+	; deltaY - change to offenseY
+	;
+	; Using DWORD for each of arithmetic.
+	;
+	move_table	dd	KEY_UP,		0,	-1
+			dd	KEY_DOWN,	0,	1
+			dd	KEY_DOWN,	0,	1
+			dd	KEY_RIGHT,	1,	0
+			dd	KEY_LEFT,	-1,	0
+			dd	0
+
 process_input:
 	enter	0, 0
 
 	push	eax
+	push	ebx
 
 	; Check for input
 	call	get_key
@@ -611,7 +634,7 @@ process_input:
 	; Is user required to hit enter?
 	check_enter:
 		cmp	DWORD [requireenter], 1
-		jne	check_UP
+		jne	check_movement
 
 		cmp	al, KEY_ENTER
 		jne	leave_process_input
@@ -622,41 +645,25 @@ process_input:
 	;
 	; Checking for offense movement
 	;
-;Could put these into a move table perhaps ...
-	check_UP:
-		cmp	al, KEY_UP
-		jne	check_DOWN
-		push	-1	; Y up
-		push	0	; X no move
-		jmp	call_move_offense
+	check_movement:
+	lea	ebx, [move_table - 12]
+	movement_loop:
+		add	ebx, 12
+		cmp	DWORD [ebx], 0	; end of table
+		je	movement_loop_end
 
-	check_DOWN:
-		cmp	al, KEY_DOWN
-		jne	check_RIGHT
-		push	1	; Y down
-		push	0	; X no move
-		jmp	call_move_offense
+		cmp	BYTE [ebx], al
+		jne	movement_loop
 
-	check_RIGHT:
-		cmp	al, KEY_RIGHT
-		jne	check_LEFT
-		push	0	; Y no move
-		push	1	; X right
-		jmp	call_move_offense
-
-	check_LEFT:
-		cmp	al, KEY_LEFT
-		jne	check_KICK
-		push	0	; Y no move
-		push	-1	; X left
-		jmp	call_move_offense
-
-
-	call_move_offense:
+		; found the key
 		mov	DWORD [playrunning], 1
+
+		push	DWORD [ebx + 8]	; deltaY
+		push	DWORD [ebx + 4]	; deltaX
 		call	move_offense
 		add	esp, 8
 		jmp	leave_process_input
+	movement_loop_end:
 
 
 
@@ -690,6 +697,7 @@ process_input:
 
 	leave_process_input:
 
+	pop	ebx
 	pop	eax
 
 	leave
