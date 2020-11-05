@@ -1,11 +1,12 @@
 ; Make a "hit enter" routine
 ; player movement table
 ; *Make a "score" routine
-; Make a "change possession"  & "change direction" routines
+; *Make a "change possession"  & "change direction" routines
 ; move check_q below check_k, or maybe to top?
 ; *define for field width
 ; *redo deltas in move_defense
 ; combine the loops in the drawboard
+; input for setting difficulty
 
 ;
 ; Values for system/library calls
@@ -381,13 +382,7 @@ update_game_state:
 		mov	DWORD [down], 1
 		mov	DWORD [yardstogo], 10
 
-		mov	eax, DWORD [possession]
-		neg	eax
-		mov	DWORD [possession], eax
-
-		mov	eax, DWORD [direction]
-		neg	eax
-		mov	DWORD [direction], eax
+		call	switch_team
 
 		call	init_player_positions
 
@@ -456,13 +451,7 @@ update_game_state:
 
 		; Turnover
 		turnover:
-			mov	eax, DWORD [possession]
-			neg	eax
-			mov	DWORD [possession], eax
-
-			mov	eax, DWORD [direction]
-			neg	eax
-			mov	DWORD [direction], eax
+			call	switch_team
 
 			mov	eax, 100
 			sub	eax, DWORD [fieldpos]
@@ -707,13 +696,7 @@ do_fieldgoal:
 
 
 	leave_do_fieldgoal:
-		mov	eax, DWORD [direction]
-		neg	eax
-		mov	DWORD [direction], eax
-
-		mov	eax, DWORD [possession]
-		neg	eax
-		mov	DWORD [possession], eax
+		call	switch_team
 
 		mov	DWORD [down], 1
 		mov	DWORD [yardstogo], 10
@@ -768,13 +751,7 @@ do_punt:
 		mov	DWORD [lineofscrimmage], FIELDPOS
 
 	leave_do_punt:
-		mov	eax, DWORD [direction]
-		neg	eax
-		mov	DWORD [direction], eax
-
-		mov	eax, DWORD [possession]
-		neg	eax
-		mov	DWORD [possession], eax
+		call	switch_team
 
 		mov	DWORD [down], 1
 		mov	DWORD [yardstogo], 10
@@ -1132,6 +1109,31 @@ score:
 
 
 	leave_score:
+
+	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void switch_team()
+;
+; Inverts direction and possession
+switch_team:
+	enter	0, 0
+
+	push	eax
+
+	mov	eax, DWORD [possession]
+	neg	eax
+	mov	DWORD [possession], eax
+
+	mov	eax, DWORD [direction]
+	neg	eax
+	mov	DWORD [direction], eax
 
 	pop	eax
 
