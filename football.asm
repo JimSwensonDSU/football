@@ -92,6 +92,7 @@ segment .bss
 	timeremaining	resd	1
 	direction	resd	1	; 1 = right, -1 = left
 	possession	resd	1	; 1 = home, -1 = visitor
+	skilllevel	resd	1	; skill level, 0-9.  0 = easy, 9 = hard
 
 	requireenter	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
@@ -194,12 +195,16 @@ init_game:
 	mov	DWORD [direction], 1
 	mov	DWORD [possession], 1
 
+	mov	DWORD [skilllevel], 0
+
 	mov	DWORD [timer_counter], TIMER_COUNTER
-	mov	DWORD [defense_counter], DEFENSE_COUNTER
+	call	reset_defense_counter
 
 	mov	DWORD [debug_on], 0
 
 	call	init_player_positions
+
+	pop	eax
 
 	leave
 	ret
@@ -287,6 +292,27 @@ decrement_timeremaining:
 	dec	DWORD [timeremaining]
 
 	leave_decrement_timeremaining:
+	leave
+	ret
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void reset_defense_count()
+;
+; Resets the defense counter, taking skilllevel into account
+;
+reset_defense_counter:
+	enter	0, 0
+
+	push	eax
+
+	mov	eax, DEFENSE_COUNTER
+	sub	eax, DWORD [skilllevel]
+	mov	DWORD [defense_counter], eax
+
+	pop	eax
+
 	leave
 	ret
 ;------------------------------------------------------------------------------
@@ -533,7 +559,7 @@ update_game_state:
 			mov	DWORD [direction], eax
 			mov	DWORD [timeremaining], GAME_TIME
 			mov	DWORD [timer_counter], TIMER_COUNTER
-			mov	DWORD [defense_counter], DEFENSE_COUNTER
+			call	reset_defense_counter
 			call	init_player_positions
 			jmp	update_game_state_done
 
@@ -553,7 +579,7 @@ update_game_state:
 			mov	DWORD [direction], 1
 			mov	DWORD [possession], -1
 			mov	DWORD [timer_counter], TIMER_COUNTER
-			mov	DWORD [defense_counter], DEFENSE_COUNTER
+			call	reset_defense_counter
 			call	init_player_positions
 			jmp	update_game_state_done
 
@@ -976,7 +1002,7 @@ move_defense:
 	; Counter for how often we'll move a defender
 	dec	DWORD [defense_counter]
 	jnz	leave_move_defense
-	mov	DWORD [defense_counter], DEFENSE_COUNTER
+	call	reset_defense_counter
 
 
 	; Move defense
@@ -1312,21 +1338,23 @@ boardstr	db	"                                                    ", 10
 		db	"         Quit: %c                                    ", 10
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
+		db	"     Hit %c to toggle debug display                  ", 10
 		db	0x1b, "[0J" ; clear to end of screen
 		db	0
 
 debugstr	db	"                                                    ", 10
 		db	"----------------------------------------------------", 10
 		db	"                                                    ", 10
-		db	"   State Variables                                  ", 10
-		db	" -------------------                                ", 10
+		db	"   State Variables       Hit 0 - 9 to change        ", 10
+		db	" -------------------     the skill level.           ", 10
 		db	"          tackle: %d                                ", 10
-		db	"     playrunning: %d                                ", 10
-		db	"    requireenter: %d                                ", 10
+		db	"     playrunning: %d       0 - easiest (default)    ", 10
+		db	"    requireenter: %d       9 - hardest              ", 10
 		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
 		db	"      possession: %d                                ", 10
 		db	"       direction: %d                                ", 10
+		db	"      skilllevel: %d                                ", 10
 		db	"                                                    ", 10
 		db	"----------------------------------------------------", 10
 		db	0
@@ -1389,6 +1417,7 @@ drawboard:
 	;
 
 	; Keys
+	push	KEY_DEBUG
 	push	KEY_QUIT
 	push	KEY_KICK
 	push	KEY_RIGHT
@@ -1495,7 +1524,7 @@ drawboard:
 	print_the_board:
 	push	boardstr
 	call	printf
-	add	esp, 92
+	add	esp, 96
 
 
 
@@ -1515,7 +1544,9 @@ drawboard:
 	cmp	DWORD [debug_on], 1
 	jne	leave_drawboard
 
+
 	; some state info
+	push	DWORD [skilllevel]
 	push	DWORD [direction]
 	push	DWORD [possession]
 	push	DWORD [lineofscrimmage]
