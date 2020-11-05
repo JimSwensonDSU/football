@@ -1,7 +1,14 @@
-;%define CLEARRIGHT	0x1b, "[K"
+; Make a "hit enter" routine
+; player movement table
+; Make a "score" routine
+; Make a "change possession"  & "change direction" routines
+; move check_q below check_k, or maybe to top?
+; define for field width
+; redo deltas in move_defense
+; combine the loops in the drawboard
 
 ;
-; Defines used throughout
+; Values for system/library calls
 ;
 %define	SYS_read	0x03
 %define SYS_write	0x04
@@ -21,8 +28,14 @@
 %define F_GETFL		3
 %define F_SETFL		4
 
+;
+; Game constants
+;
 %define	OFFENSE_CHAR	'O'	; character for offensive player
 %define	DEFENSE_CHAR	'X'	; character for defensive players
+
+%define	TOUCHDOWN_PTS	7	; points for a touchdown
+%define	FIELDGOAL_PTS	3	; points for a field goal
 %define	FIELDPOS	20	; starting field position
 %define	FIELDGOAL_MIN	70	; min fieldpos to attempt a field goal
 %define	FIELDGOAL_PCT	75	; percent success rate for hitting a field goal
@@ -40,6 +53,7 @@
 segment .data
 
 segment .bss
+	; save terminal/stdin settings
 	save_termios		resb	60
 	save_c_lflag		resb	4
 	save_stdin_flags	resb	4
@@ -48,6 +62,7 @@ segment .bss
 	gameover	resd	1
 	down		resd	1
 	fieldpos	resd	1
+	lineofscrimmage	resd	1
 	yardstogo	resd	1
 	homescore	resd	1
 	visitorscore	resd	1
@@ -61,7 +76,6 @@ segment .bss
 	tackle		resd	1	; 1 = yes, 0 = no
 	punt		resd	1	; 1 = yes, 0 = no
 	fieldgoal	resd	1	; 1 = good, 0 = none, -1 = miss
-	lineofscrimmage	resd	1
 
 	; location of players
 	offense		resd	2		; X, Y
@@ -99,10 +113,12 @@ new_game:
 	enter	0, 0
 	call	init_game
 	call	clearscreen
-	call	drawboard
 
-	eventloop:
+	gameloop:
 		call	drawboard
+
+		cmp	DWORD [gameover], 1
+		je	end_game
 
 		push	TICK
 		call	usleep
@@ -112,15 +128,11 @@ new_game:
 
 		call	move_defense
 
-		cmp	DWORD [gameover], 1
-		je	end_game
-
 		call	decrement_timeremaining
 
 		call	update_game_state
 
-		jmp	eventloop
-
+		jmp	gameloop
 
 	end_game:
 
@@ -141,6 +153,7 @@ init_game:
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
 	mov	DWORD [fieldpos], FIELDPOS
+	mov	DWORD [lineofscrimmage], FIELDPOS
 	mov	DWORD [yardstogo], 10
 	mov	DWORD [homescore], 0
 	mov	DWORD [visitorscore], 0
@@ -152,7 +165,6 @@ init_game:
 	mov	DWORD [tackle], 0
 	mov	DWORD [punt], 0
 	mov	DWORD [fieldgoal], 0
-	mov	DWORD [lineofscrimmage], FIELDPOS
 
 	mov	DWORD [direction], 1
 	mov	DWORD [possession], 1
@@ -243,7 +255,7 @@ decrement_timeremaining:
 	jnz	leave_decrement_timeremaining
 	mov	DWORD [timer_counter], TIMER_COUNTER
 
-	cmp	DWORD [timeremaining], 0
+	cmp	DWORD [timeremaining], 0	; don't decrement below 0
 	je	leave_decrement_timeremaining
 	dec	DWORD [timeremaining]
 
@@ -256,6 +268,8 @@ decrement_timeremaining:
 ;
 ; void update_game_state()
 ;
+; Checks for field goal, punt, touchdown, and tackle.
+;
 update_game_state:
 	enter	0, 0
 
@@ -265,46 +279,66 @@ update_game_state:
 	;
 	; check for a field goal
 	;
+	; - display the good/miss splash screen
+	; - pause until user hits enter
+	;
 	state_fieldgoal:
-	cmp	DWORD [fieldgoal], 0
-	je	state_punt
-	mov	DWORD [requireenter], 1
-	call	drawboard
-	cmp	DWORD [fieldgoal], -1
-	je	fg_miss
-	call	drawfieldgoalgood
-	jmp	state_fieldgoal_loop
-	fg_miss:
-	call	drawfieldgoalmiss
-	state_fieldgoal_loop:
-	call	process_input
-	cmp	DWORD [requireenter], 1
-	je	state_fieldgoal_loop
-	mov	DWORD [fieldgoal], 0
-	jmp	leave_update_game_state
+		cmp	DWORD [fieldgoal], 0
+		je	state_punt
+
+		; There was a field goal attempt
+		mov	DWORD [requireenter], 1
+		call	drawboard
+
+		cmp	DWORD [fieldgoal], -1
+		je	fg_miss
+
+		; Field goal was good
+		call	drawfieldgoalgood
+		jmp	state_fieldgoal_loop
+
+		; Field goal missed
+		fg_miss:
+		call	drawfieldgoalmiss
+
+;Could probably eliminate these wait loops
+		; Loop until user hits enter
+		state_fieldgoal_loop:
+			call	process_input
+			cmp	DWORD [requireenter], 1
+			je	state_fieldgoal_loop
+			mov	DWORD [fieldgoal], 0
+			jmp	leave_update_game_state
 
 
 	;
 	; check for a punt
 	;
+	; - display the punt splash screen
+	; - pause until user hits enter
+	;
 	state_punt:
-	cmp	DWORD [punt], 1
-	jne	state_touchdown
-	mov	DWORD [requireenter], 1
-	mov	DWORD [punt], 0
-	call	drawboard
-	call	drawpunt
-	state_punt_loop:
-	call	process_input
-	cmp	DWORD [requireenter], 1
-	je	state_punt_loop
-	jmp	leave_update_game_state
+		cmp	DWORD [punt], 1
+		jne	state_touchdown
+
+		; There was a punt
+		mov	DWORD [requireenter], 1
+		mov	DWORD [punt], 0
+
+		call	drawboard
+		call	drawpunt
+
+		; Loop until user hits enter
+		state_punt_loop:
+			call	process_input
+			cmp	DWORD [requireenter], 1
+			je	state_punt_loop
+			jmp	leave_update_game_state
 
 
 	;
 	; check for a touchdown
 	;
-	; For a touchdown:
 	; - display the "touchdown" splash screen
 	; - increment offense score by 7
 	; - pause here until they hit enter
@@ -315,50 +349,60 @@ update_game_state:
 	;      lineofscrimmage = FIELDPOS
 	;      down = 1
 	;      yards to go = 10
-	;      offense
 
 	state_touchdown:
-	cmp	DWORD [fieldpos], 100
-	jl	state_tackle
-	mov	DWORD [requireenter], 1
-	mov	DWORD [playrunning], 0
-	cmp	DWORD [possession], 1
-	jne	touchdown_visitor
-	touchdown_home:
-	add	DWORD [homescore], 7
-	jmp	touchdown_next;
-	touchdown_visitor:
-	add	DWORD [visitorscore], 7
-	touchdown_next:
-	call	drawboard
-	call	drawtouchdown
-	state_touchdown_loop:
-	call	process_input
-	cmp	DWORD [requireenter], 1
-	je	state_touchdown_loop
+		cmp	DWORD [fieldpos], 100
+		jl	state_tackle
 
-	mov	DWORD [fieldpos], FIELDPOS
-	mov	DWORD [lineofscrimmage], FIELDPOS
-	mov	DWORD [down], 1
-	mov	DWORD [yardstogo], 10
+		; It's a touchdown
+		mov	DWORD [requireenter], 1
+		mov	DWORD [playrunning], 0
 
-	mov	eax, DWORD [possession]
-	neg	eax
-	mov	DWORD [possession], eax
+		cmp	DWORD [possession], 1	; who has the ball
+		jne	touchdown_visitor
 
-	mov	eax, DWORD [direction]	; direction
-	neg	eax
-	mov	DWORD [direction], eax
+		; Home team score
+		touchdown_home:
+		add	DWORD [homescore], TOUCHDOWN_PTS
+		jmp	touchdown_next;
 
-	call	init_player_positions
+		; Visitor team score
+		touchdown_visitor:
+		add	DWORD [visitorscore], TOUCHDOWN_PTS
 
-	jmp	leave_update_game_state
+		touchdown_next:
+			call	drawboard
+			call	drawtouchdown
+
+		; Loop until user hits enter
+		state_touchdown_loop:
+			call	process_input
+			cmp	DWORD [requireenter], 1
+			je	state_touchdown_loop
+
+
+		; Switch to other team
+		mov	DWORD [fieldpos], FIELDPOS
+		mov	DWORD [lineofscrimmage], FIELDPOS
+		mov	DWORD [down], 1
+		mov	DWORD [yardstogo], 10
+
+		mov	eax, DWORD [possession]
+		neg	eax
+		mov	DWORD [possession], eax
+
+		mov	eax, DWORD [direction]
+		neg	eax
+		mov	DWORD [direction], eax
+
+		call	init_player_positions
+
+		jmp	leave_update_game_state
 
 
 	;
 	; check for a tackle
 	;
-	; For a tackle:
 	; - display the "tackle" splash screen
 	; - update line of scrimmage, yards to go, and down
 	; - if yards to go <= 0, update down to 1 and yards to go to 10, otherwise down++
@@ -368,120 +412,138 @@ update_game_state:
 	;      fieldpos = 100 - fieldpos
 	;      down = 1
 	;      yards to go = 10
+
 	state_tackle:
-	cmp	DWORD [tackle], 1
-	jne	state_something_else
-	mov	DWORD [requireenter], 1
-	call	drawboard
-	call	drawtackle
-	state_tackle_loop:
-	call	process_input
-	cmp	DWORD [requireenter], 1
-	je	state_tackle_loop
+		cmp	DWORD [tackle], 1
+		jne	state_something_else
 
-	mov	DWORD [tackle], 0
-	mov	eax, DWORD [fieldpos]
-	sub	eax, DWORD [lineofscrimmage]	; eax = gain
-	sub	DWORD [yardstogo], eax
-	cmp	DWORD [yardstogo], 0
-	jle	first_down
-	inc	DWORD [down]
-	cmp	DWORD [down], 4
-	jg	turnover
-	mov	eax, DWORD [fieldpos]
-	mov	DWORD [lineofscrimmage], eax
-	call	init_player_positions
-	jmp	leave_update_game_state
+		; It's a tackle
+		mov	DWORD [requireenter], 1
+		call	drawboard
+		call	drawtackle
+
+		; Loop until user hits enter
+		state_tackle_loop:
+			call	process_input
+			cmp	DWORD [requireenter], 1
+			je	state_tackle_loop
+
+		; update field position
+		mov	DWORD [tackle], 0
+		mov	eax, DWORD [fieldpos]
+		sub	eax, DWORD [lineofscrimmage]	; eax = gain
+		sub	DWORD [yardstogo], eax
+
+		; first down?
+		cmp	DWORD [yardstogo], 0
+		jle	first_down
+
+		inc	DWORD [down]
+
+		; turnover?
+		cmp	DWORD [down], 4
+		jg	turnover
+
+		; not a turnover
+		mov	eax, DWORD [fieldpos]
+		mov	DWORD [lineofscrimmage], eax
+		call	init_player_positions
+		jmp	leave_update_game_state
 	
 
-	first_down:
-	mov	eax, DWORD [fieldpos]
-	mov	DWORD [lineofscrimmage], eax
-	mov	DWORD [down], 1
-	mov	DWORD [yardstogo], 10
-	call	init_player_positions
-	jmp	leave_update_game_state
+		; They made a first down
+		first_down:
+			mov	eax, DWORD [fieldpos]
+			mov	DWORD [lineofscrimmage], eax
+			mov	DWORD [down], 1
+			mov	DWORD [yardstogo], 10
+			call	init_player_positions
+			jmp	leave_update_game_state
 
-	turnover:
-	mov	eax, DWORD [possession]
-	neg	eax
-	mov	DWORD [possession], eax
-	mov	eax, DWORD [direction]
-	neg	eax
-	mov	DWORD [direction], eax
-	mov	eax, 100
-	sub	eax, DWORD [fieldpos]
-	mov	DWORD [fieldpos], eax
-	mov	DWORD [lineofscrimmage], eax
-	mov	DWORD [down], 1
-	mov	DWORD [yardstogo], 10
-	call	init_player_positions
-	jmp	leave_update_game_state
+		; Turnover
+		turnover:
+			mov	eax, DWORD [possession]
+			neg	eax
+			mov	DWORD [possession], eax
+
+			mov	eax, DWORD [direction]
+			neg	eax
+			mov	DWORD [direction], eax
+
+			mov	eax, 100
+			sub	eax, DWORD [fieldpos]
+			mov	DWORD [fieldpos], eax
+			mov	DWORD [lineofscrimmage], eax
+
+			mov	DWORD [down], 1
+			mov	DWORD [yardstogo], 10
+			call	init_player_positions
+			jmp	leave_update_game_state
 	
 
-	state_something_else:
-	jmp	leave_update_game_state
+		; Placeholder for additional functionality ...
+		state_something_else:
+			jmp	leave_update_game_state
 
-	leave_update_game_state:
+
 
 	; Check if quarter is over if a play is not running
-	cmp	DWORD [playrunning], 1
-	je	update_game_state_done
-	cmp	DWORD [timeremaining], 0
-	jg	update_game_state_done
-	inc	DWORD [quarter]
+	leave_update_game_state:
 
-	; Done with quarter
-	;
-	; For a new quarter:
-	;
-	; 2 or 4
-	;   - switch direction
-	;   - possession, fieldpos, lineofscrimmage, down, yardstogo remain same
-	;   - reset timeremaining
-	;
-	; 3
-	;   - visitor possession (possession = -1)
-	;   - fieldpos = FIELDPOS
-	;   - lineofscrimmage = FIELDPOS
-	;   - down = 1
-	;   - yardstogo = 10
-	;   - direction = 1
-	;
+		cmp	DWORD [playrunning], 1
+		je	update_game_state_done
 
-	cmp	DWORD [quarter], 4
-	jg	state_game_over
+		cmp	DWORD [timeremaining], 0
+		jg	update_game_state_done
 
-	cmp	DWORD [quarter], 3
-	je	state_second_half
 
-	state_second_or_forth_quarter:
-	mov	eax, DWORD [direction]
-	neg	eax
-	mov	DWORD [direction], eax
-	mov	DWORD [timeremaining], GAME_TIME
-	mov	DWORD [timer_counter], TIMER_COUNTER
-	mov	DWORD [defense_counter], DEFENSE_COUNTER
-	call	init_player_positions
-	jmp	update_game_state_done
+		; Done with quarter
+		inc	DWORD [quarter]
 
-	state_second_half:
-	mov	DWORD [down], 1
-	mov	DWORD [fieldpos], FIELDPOS
-	mov	DWORD [yardstogo], 10
-	mov	DWORD [timeremaining], GAME_TIME
-	mov	DWORD [lineofscrimmage], FIELDPOS
-	mov	DWORD [direction], 1
-	mov	DWORD [possession], -1
-	mov	DWORD [timer_counter], TIMER_COUNTER
-	mov	DWORD [defense_counter], DEFENSE_COUNTER
-	call	init_player_positions
-	jmp	update_game_state_done
+		cmp	DWORD [quarter], 4
+		jg	state_game_over
 
-	state_game_over:
-	mov	DWORD [gameover], 1
-	mov	DWORD [quarter], 4
-	jmp	update_game_state_done
+		cmp	DWORD [quarter], 3
+		je	state_second_half
+
+		; Moving to 2nd or 4th quarter
+		;   - switch direction
+		;   - possession, fieldpos, lineofscrimmage, down, yardstogo remain same
+		;   - reset timeremaining
+		state_second_or_forth_quarter:
+			mov	eax, DWORD [direction]
+			neg	eax
+			mov	DWORD [direction], eax
+			mov	DWORD [timeremaining], GAME_TIME
+			mov	DWORD [timer_counter], TIMER_COUNTER
+			mov	DWORD [defense_counter], DEFENSE_COUNTER
+			call	init_player_positions
+			jmp	update_game_state_done
+
+		; Moving to 3rd quarter
+		;   - visitor possession (possession = -1)
+		;   - direction = 1
+		;   - fieldpos = FIELDPOS
+		;   - lineofscrimmage = FIELDPOS
+		;   - down = 1
+		;   - yardstogo = 10
+		state_second_half:
+			mov	DWORD [down], 1
+			mov	DWORD [fieldpos], FIELDPOS
+			mov	DWORD [yardstogo], 10
+			mov	DWORD [timeremaining], GAME_TIME
+			mov	DWORD [lineofscrimmage], FIELDPOS
+			mov	DWORD [direction], 1
+			mov	DWORD [possession], -1
+			mov	DWORD [timer_counter], TIMER_COUNTER
+			mov	DWORD [defense_counter], DEFENSE_COUNTER
+			call	init_player_positions
+			jmp	update_game_state_done
+
+		state_game_over:
+			mov	DWORD [gameover], 1
+			mov	DWORD [quarter], 4
+			jmp	update_game_state_done
 
 
 	update_game_state_done:
@@ -501,15 +563,16 @@ update_game_state:
 process_input:
 	enter	0, 0
 
+	; Check for input
 	call	get_key
 	cmp	al, -1
 	je	leave_process_input
 
 
+	; Is user required to hit enter to continue?
 	cmp	DWORD [requireenter], 1
 	jne	check_w
 
-	; Did they hit enter
 	cmp	al, 10
 	jne	leave_process_input
 	mov	DWORD [requireenter], 0
@@ -517,74 +580,89 @@ process_input:
 
 
 	;
+	; Checking for offense movement
+	;
 	; w, a, s, d - offense player movement
 	;
+;Could put these into a move table perhaps ...
 	check_w:
-	cmp	al, 'w'
-	jne	check_s
-	push	-1
-	push	0
-	jmp	call_move_offense
+		cmp	al, 'w'
+		jne	check_s
+		push	-1	; Y up
+		push	0	; X no move
+		jmp	call_move_offense
 
 	check_s:
-	cmp	al, 's'
-	jne	check_d
-	push	1
-	push	0
-	jmp	call_move_offense
+		cmp	al, 's'
+		jne	check_d
+		push	1	; Y down
+		push	0	; X no move
+		jmp	call_move_offense
 
 	check_d:
-	cmp	al, 'd'
-	jne	check_a
-	push	0
-	push	1
-	jmp	call_move_offense
+		cmp	al, 'd'
+		jne	check_a
+		push	0	; Y no move
+		push	1	; X right
+		jmp	call_move_offense
 
 	check_a:
-	cmp	al, 'a'
-	jne	check_q
-	push	0
-	push	-1
-	jmp	call_move_offense
+		cmp	al, 'a'
+		jne	check_q
+		push	0	; Y no move
+		push	-1	; X left
+		jmp	call_move_offense
+
 
 	call_move_offense:
-	mov	DWORD [playrunning], 1
-	call	move_offense
-	add	esp, 8
-	jmp	leave_process_input
+		mov	DWORD [playrunning], 1
+		call	move_offense
+		add	esp, 8
+		jmp	leave_process_input
 
 
 
-	; quit
+	;
+	; Checking for quit
+	;
+	; q - Quit
+	;
 	check_q:
-	cmp	al, 'q'
-	jne	check_k
-	mov	DWORD [gameover], 1
-	jmp	leave_process_input
+		cmp	al, 'q'
+		jne	check_k
+		mov	DWORD [gameover], 1
+		jmp	leave_process_input
 
 
 
-	; kick (punt or fieldgoal)
+	; Check for a kick (punt or fieldgoal)
 	;
-	; To process, must be 4th down and no play running.
+	; k - Kick
 	;
-	; if fieldpos >= FIELDGOAL_MIN, try a fieldgoal, otherwise a punt
+	; - To allow, must be 4th down and no play running.
+	; - if fieldpos >= FIELDGOAL_MIN, try a fieldgoal, otherwise a punt
 	;
 	check_k:
-	cmp	al, 'k'
-	jne	leave_process_input
-	cmp	DWORD [down], 4
-	jne	leave_process_input
-	cmp	DWORD [playrunning], 0
-	jne	leave_process_input
+		cmp	al, 'k'
+		jne	leave_process_input
 
-	cmp	DWORD [fieldpos], FIELDGOAL_MIN
-	jge	try_field_goal
-	call	do_punt
-	jmp	leave_process_input
-	try_field_goal:
-	call	do_fieldgoal
-	jmp	leave_process_input
+		; Must be 4th down
+		cmp	DWORD [down], 4
+		jne	leave_process_input
+
+		; Cannot be a play running
+		cmp	DWORD [playrunning], 0
+		jne	leave_process_input
+
+		; Are they within field goal range?
+		cmp	DWORD [fieldpos], FIELDGOAL_MIN
+		jge	try_field_goal
+		call	do_punt
+		jmp	leave_process_input
+
+		try_field_goal:
+		call	do_fieldgoal
+		jmp	leave_process_input
 
 
 	leave_process_input:
@@ -604,43 +682,57 @@ do_fieldgoal:
 
 	push	eax
 
+	; Check for field goal good/miss
 	push	100
 	call	random
 	add	esp, 4
 	cmp	eax, FIELDGOAL_PCT
 	jg	fieldgoal_miss
-	mov	DWORD [fieldgoal], 1
-	mov	DWORD [fieldpos], FIELDPOS
-	mov	DWORD [lineofscrimmage], FIELDPOS
 
-	cmp	DWORD [possession], 1
-	jne	fieldgoal_visitor
-	fieldgoal_home:
-	add	DWORD [homescore], 3
-	jmp	fieldgoal_next;
-	fieldgoal_visitor:
-	add	DWORD [visitorscore], 3
-	fieldgoal_next:
-	jmp	leave_do_fieldgoal
+	; Field goal was good
+	fieldgoal_good:
+		mov	DWORD [fieldgoal], 1
+		mov	DWORD [fieldpos], FIELDPOS
+		mov	DWORD [lineofscrimmage], FIELDPOS
 
+		; Increment score
+		cmp	DWORD [possession], 1
+		jne	fieldgoal_visitor
+
+		fieldgoal_home:
+			add	DWORD [homescore], FIELDGOAL_PTS
+			jmp	fieldgoal_next;
+
+		fieldgoal_visitor:
+			add	DWORD [visitorscore], FIELDGOAL_PTS
+
+		fieldgoal_next:
+		jmp	leave_do_fieldgoal
+
+
+	; Field goal missed
 	fieldgoal_miss:
-	mov	DWORD [fieldgoal], -1
-	mov	eax, 100
-	sub	eax, DWORD [fieldpos]
-	mov	DWORD [fieldpos], eax
-	mov	DWORD [lineofscrimmage], eax
-	jmp	leave_do_fieldgoal
+		mov	DWORD [fieldgoal], -1
+		mov	eax, 100
+		sub	eax, DWORD [fieldpos]
+		mov	DWORD [fieldpos], eax
+		mov	DWORD [lineofscrimmage], eax
+		jmp	leave_do_fieldgoal
+
 
 	leave_do_fieldgoal:
-	mov	eax, DWORD [direction]
-	neg	eax
-	mov	DWORD [direction], eax
-	mov	eax, DWORD [possession]
-	neg	eax
-	mov	DWORD [possession], eax
-	mov	DWORD [down], 1
-	mov	DWORD [yardstogo], 10
-	call	init_player_positions
+		mov	eax, DWORD [direction]
+		neg	eax
+		mov	DWORD [direction], eax
+
+		mov	eax, DWORD [possession]
+		neg	eax
+		mov	DWORD [possession], eax
+
+		mov	DWORD [down], 1
+		mov	DWORD [yardstogo], 10
+
+		call	init_player_positions
 
 	pop	eax
 
@@ -663,6 +755,9 @@ do_punt:
 
 	mov	DWORD [punt], 1
 
+	;
+	; Random punt distance between MIN_PUNT and MAX_PUNT
+	;
 	mov	eax, MAX_PUNT
 	sub	eax, MIN_PUNT
 	push	eax
@@ -670,6 +765,9 @@ do_punt:
 	add	esp, 4
 	add	eax, MIN_PUNT
 
+	;
+	; Update field position, checking for a touchback
+	;
 	add	DWORD [fieldpos], eax
 	cmp	DWORD [fieldpos], 100
 	jge	punt_touchback
@@ -680,19 +778,21 @@ do_punt:
 	jmp	leave_do_punt
 
 	punt_touchback:
-	mov	DWORD [fieldpos], FIELDPOS
-	mov	DWORD [lineofscrimmage], FIELDPOS
+		mov	DWORD [fieldpos], FIELDPOS
+		mov	DWORD [lineofscrimmage], FIELDPOS
 
 	leave_do_punt:
-	mov	eax, DWORD [direction]
-	neg	eax
-	mov	DWORD [direction], eax
-	mov	eax, DWORD [possession]
-	neg	eax
-	mov	DWORD [possession], eax
-	mov	DWORD [down], 1
-	mov	DWORD [yardstogo], 10
-	call	init_player_positions
+		mov	eax, DWORD [direction]
+		neg	eax
+		mov	DWORD [direction], eax
+
+		mov	eax, DWORD [possession]
+		neg	eax
+		mov	DWORD [possession], eax
+
+		mov	DWORD [down], 1
+		mov	DWORD [yardstogo], 10
+		call	init_player_positions
 
 	pop	eax
 
@@ -705,16 +805,20 @@ do_punt:
 ;
 ; void move_offense(int deltaX, int deltaY)
 ;
-; Move the offense by deltaX, deltaY.  Will check for a tackle.
+; Move the offense by deltaX, deltaY.
+; Takes "direction" into account.
+; Checks for a tackle.
 ;
 move_offense:
 	enter	12, 0
 
+	; Arguments:
 	; [ebp + 12] : deltaY
 	; [ebp + 8]  : deltaX
-	;
-	; [ebp - 4]   : save offense X
-	; [ebp - 8]   : save offense Y
+
+	; Local vars:
+	; [ebp - 4]   : save offenseX
+	; [ebp - 8]   : save offenseY
 	; [ebp - 12]  : save fieldpos
 
 	push	eax
@@ -724,10 +828,10 @@ move_offense:
 
 
 	; Save current offense and fieldpos
-	mov	eax, DWORD [offense]		; offense X
+	mov	eax, DWORD [offense]		; offens X
 	mov	DWORD [ebp - 4], eax
 
-	mov	eax, DWORD [offense + 4]	; offense Y
+	mov	eax, DWORD [offense + 4]	; offenseY
 	mov	DWORD [ebp - 8], eax
 
 	mov	eax, DWORD [fieldpos]		; fieldpos
@@ -736,74 +840,89 @@ move_offense:
 
 	mov	ebx, 10
 
+	; Calculate new field position based on direction and deltaX
 	update_offense_pos_x:
-	mov	eax, DWORD [direction]
-	mul	DWORD [ebp + 8]
-	add	eax, DWORD [fieldpos]
+		mov	eax, DWORD [direction]
+		mul	DWORD [ebp + 8]		; deltaX
+		add	eax, DWORD [fieldpos]	; eax = new field position
 
-	cmp	eax, DWORD [lineofscrimmage]
-	jl	update_offense_pos_y	; Can't move before line of scrimmage
+		; Don't allow move before line of scrimmage
+		cmp	eax, DWORD [lineofscrimmage]
+		jl	update_offense_pos_y
 
-	cmp	eax, 100
-	jg	update_offense_pos_y	; Can't move past goal line
+		; Don't allow move past the goal line
+		cmp	eax, 100
+		jg	update_offense_pos_y
 
-	mov	DWORD [fieldpos], eax
+		; X move is ok
+		mov	DWORD [fieldpos], eax
 
-	mov	eax, 1
-	mul	DWORD [ebp + 8]
-	add	eax, DWORD [offense]
-	add	eax, ebx
-	xor	edx, edx
-	div	ebx
-	mov	DWORD [offense], edx
+		; Update the offenseX position as well
+;Could combined these two lines into a mov eax, DWORD [ebp + 8]
+		mov	eax, 1
+		mul	DWORD [ebp + 8]		; eax = deltaX
+		add	eax, DWORD [offense]	; eax = offenseX + deltaX
+		add	eax, ebx		; eax = 10 + offenseX + deltaX
+		; mod 10
+		xor	edx, edx
+		div	ebx
+		mov	DWORD [offense], edx	; new offenseX position
 
 
 	update_offense_pos_y:
-	mov	eax, DWORD [ebp + 12]
-	add	eax, DWORD [offense + 4]
-	cmp	eax, 0
-	jl	leave_move_offense
-	cmp	eax, 2
-	jg	leave_move_offense
-	mov	DWORD [offense + 4], eax
+		mov	eax, DWORD [ebp + 12]		; eax = deltaY
+		add	eax, DWORD [offense + 4]	; eax = offenseY + deltaY
+
+		; Can't move bove field
+		cmp	eax, 0
+		jl	leave_move_offense
+
+		; Can't move below field
+		cmp	eax, 2
+		jg	leave_move_offense
+		mov	DWORD [offense + 4], eax	; new offenseY position
 
 
-	leave_move_offense:
-
-
+	;
 	; Check if offense on same spot as a defender.  If so, it's a tackle, and
 	; we should restore the saved values for offense and fieldpos.
+	;
+	leave_move_offense:
 
-	mov	DWORD [tackle], 0
+		mov	DWORD [tackle], 0
 
-	mov	eax, DWORD [offense]		; offense X
-	mov	ebx, DWORD [offense + 4]	; offense Y
-	mov	ecx, NUM_DEFENSE
-	check_tackle:
-	cmp	eax, DWORD [defense + 8*ecx - 8]	; defense X
-	jne	next_check_tackle
-	cmp	ebx, DWORD [defense + 8*ecx - 4]	; defense Y
-	jne	next_check_tackle
-	mov	DWORD [tackle], 1
-	next_check_tackle:
-	loop	check_tackle
+		mov	eax, DWORD [offense]		; offenseX
+		mov	ebx, DWORD [offense + 4]	; offens Y
+		mov	ecx, NUM_DEFENSE
+
+		check_tackle:
+			cmp	eax, DWORD [defense + 8*ecx - 8]	; defense X
+			jne	next_check_tackle
+			cmp	ebx, DWORD [defense + 8*ecx - 4]	; defense Y
+			jne	next_check_tackle
+			mov	DWORD [tackle], 1
+
+			next_check_tackle:
+			loop	check_tackle
 
 
-	cmp	DWORD [tackle], 1
-	jne	move_offense_done
-	mov	DWORD [playrunning], 0
-	mov	DWORD [requireenter], 1
+		; Tacked?
+		cmp	DWORD [tackle], 1
+		jne	move_offense_done
 
-	; restore the saves values for offense and fieldpos
+		; Offense player is tackled
+		mov	DWORD [playrunning], 0
+		mov	DWORD [requireenter], 1
 
-	mov	eax, DWORD [ebp - 4]		; offense X
-	mov	DWORD [offense], eax
+		; restore the saved values for offense and fieldpos
+		mov	eax, DWORD [ebp - 4]		; offenseX
+		mov	DWORD [offense], eax
 
-	mov	eax, DWORD [ebp - 8]		; offense Y
-	mov	DWORD [offense + 4], eax
+		mov	eax, DWORD [ebp - 8]		; offenseY
+		mov	DWORD [offense + 4], eax
 
-	mov	eax, DWORD [ebp - 12]		; fieldpos
-	mov	DWORD [fieldpos], eax
+		mov	eax, DWORD [ebp - 12]		; fieldpos
+		mov	DWORD [fieldpos], eax
 
 
 	move_offense_done:
@@ -822,143 +941,175 @@ move_offense:
 ;
 ; void move_defense()
 ;
+; Move defense players.
+;
 move_defense:
 	enter	20, 0
 
-	; [ebp - 4]   : save defenseX
-	; [ebp - 8]   : save defenseY
+	; Local vars:
+	; [ebp - 4]   : defenseX
+	; [ebp - 8]   : defenseY
 	; [ebp - 12]  : defender to move
 	; [ebp - 16]  : deltaX
 	; [ebp - 20]  : deltaY
 
-	pusha
+	push	eax
+	push	ebx
+	push	ecx
+	push	edx
 
+	; Must be a play running
 	cmp	DWORD [playrunning], 0
 	je	leave_move_defense
 
+	; Counter for how often we'll move a defender
 	dec	DWORD [defense_counter]
 	jnz	leave_move_defense
 	mov	DWORD [defense_counter], DEFENSE_COUNTER
 
+
 	; Move defense
 	;
-	; Pick one defender at random to move.
-	; Defenders want to move towards the offense.
-	; Will either move one space in X or Y position.
+	; - Pick one defender at random to move.
+	; - Defenders want to move towards the offense.
+	; - Will either move one space in X or Y position.
 
+
+	; Randomly pick one defender
 	push	NUM_DEFENSE
 	call	random
 	add	esp, 4
 	mov	DWORD [ebp - 12], eax
 
-	; save that defender's position
+	; save that defender's current position
 	mov	ebx, DWORD [defense + 8*eax]
-	mov	DWORD [ebp - 4], ebx
+	mov	DWORD [ebp - 4], ebx		; defenseX
 	mov	ebx, DWORD [defense + 8*eax + 4]
-	mov	DWORD [ebp - 8], ebx
+	mov	DWORD [ebp - 8], ebx		; defenseX
 
 
-	; Calculate deltaX, deltaY to player
+	; Calculate deltaX, deltaY to offense
 	calc_deltaX:
-	mov	eax, DWORD [offense]
-	cmp	eax, DWORD [ebp - 4]
-	je	equalX
-	jg	greaterX
-	mov	DWORD [ebp - 16], 1
-	jmp	calc_deltaY
-	equalX:
-	mov	DWORD [ebp - 16], 0 
-	jmp	calc_deltaY
-	greaterX:
-	mov	DWORD [ebp - 16], -1
+		mov	eax, DWORD [offense]	; offenseX
+		cmp	eax, DWORD [ebp - 4]
+		je	equalX
+		jg	greaterX
+		mov	DWORD [ebp - 16], 1		; defender to right of offense
+		jmp	calc_deltaY
+
+		equalX:
+			mov	DWORD [ebp - 16], 0	; defender even with offense
+			jmp	calc_deltaY
+
+		greaterX:
+			mov	DWORD [ebp - 16], -1	; defender to left of offense
 
 	calc_deltaY:
-	mov	eax, DWORD [offense + 4]
-	cmp	eax, DWORD [ebp - 8]
-	je	equalY
-	jg	greaterY
-	mov	DWORD [ebp - 20], 1
-	jmp	pick_move
-	equalY:
-	mov	DWORD [ebp - 20], 0 
-	jmp	pick_move
-	greaterY:
-	mov	DWORD [ebp - 20], -1
+		mov	eax, DWORD [offense + 4]	; offenseY
+		cmp	eax, DWORD [ebp - 8]
+		je	equalY
+		jg	greaterY
+		mov	DWORD [ebp - 20], 1		; defender above offense
+		jmp	pick_move
+
+		equalY:
+			mov	DWORD [ebp - 20], 0 	; defender even with offense
+			jmp	pick_move
+
+		greaterY:
+			mov	DWORD [ebp - 20], -1	; defender below offense
 
 
 	;
-	; If only 1 non-zero, use that.  Otherwise pick at random.
+	; If only one of deltaX, deltaY is  non-zero, use the non-zero.
+	; Otherwise pick at random.
 	;
 	pick_move:
-	cmp	DWORD [ebp - 16], 0	; deltaX
-	je	moveY
-	cmp	DWORD [ebp - 20], 0	; deltaY
-	je	moveX
-	push	2
-	call	random
-	add	esp, 4
-	cmp	eax, 0
-	je	moveY
-	jmp	moveX
+		cmp	DWORD [ebp - 16], 0	; deltaX
+		je	moveY
 
+		cmp	DWORD [ebp - 20], 0	; deltaY
+		je	moveX
+
+		; Pick at random between using deltaX or deltaY
+		push	2
+		call	random
+		add	esp, 4
+		cmp	eax, 0
+		je	moveY
+		jmp	moveX
+
+	; Move defender in X direction
 	moveX:
-	mov	eax, DWORD [ebp - 4]	; defense X
-	sub	eax, DWORD [ebp - 16]	; deltaX
-	mov	DWORD [ebp - 4], eax
-	jmp	check_move
+		mov	eax, DWORD [ebp - 4]	; defenseX
+		sub	eax, DWORD [ebp - 16]	; deltaX
+		mov	DWORD [ebp - 4], eax
+		jmp	check_move
 
 	moveY:
-	mov	eax, DWORD [ebp - 8]	; defense Y
-	sub	eax, DWORD [ebp - 20]	; deltaY
-	mov	DWORD [ebp - 8], eax
-	jmp	check_move
+		mov	eax, DWORD [ebp - 8]	; defense Y
+		sub	eax, DWORD [ebp - 20]	; deltaY
+		mov	DWORD [ebp - 8], eax
+		jmp	check_move
 
 
-	; If defender would be on same location as offense, then it is a tackle
+	; If defender would be on same location as offense, then it is a tackle.
 	check_move:
-	mov	eax, DWORD [offense]
-	cmp	eax, DWORD [ebp - 4]
-	jne	not_a_tackle
-	mov	eax, DWORD [offense + 4]
-	cmp	eax, DWORD [ebp - 8]
-	jne	not_a_tackle
+		mov	eax, DWORD [offense]	; offenseX
+		cmp	eax, DWORD [ebp - 4]	; defenseX
+		jne	not_a_tackle
+
+		mov	eax, DWORD [offense + 4]	; offenseY
+		cmp	eax, DWORD [ebp - 8]		; defenseY
+		jne	not_a_tackle
 
 
 	; Tackle
+	; We don't update the real defense position for this case.
 	mov	DWORD [tackle], 1
 	mov	DWORD [playrunning], 0
 	mov	DWORD [requireenter], 1
 	jmp	leave_move_defense
 
 
+	; Was not a tackle.
 	; Make sure defender not trying to move on top of another defender.
 	; If not, then update defender's position, otherwise ignore the move.
 	not_a_tackle:
-	mov	ebx, 1
-	mov	ecx, NUM_DEFENSE
-	not_a_tackle_loop:
-	mov	eax, DWORD [defense + 8*ecx - 8]
-	cmp	eax, DWORD [ebp - 4]
-	jne	next_defender
-	mov	eax, DWORD [defense + 8*ecx - 4]
-	cmp	eax, DWORD [ebp - 8]
-	jne	next_defender
-	mov	ebx, 0
-	next_defender:
-	loop	not_a_tackle_loop
+		mov	ebx, 1	; move ok?
+		mov	ecx, NUM_DEFENSE
 
-	cmp	ebx, 1
-	jne	leave_move_defense
+		not_a_tackle_loop:
+			mov	eax, DWORD [defense + 8*ecx - 8]; A defender X pos
+			cmp	eax, DWORD [ebp - 4]		; defenseX
+			jne	next_defender
 
-	mov	eax, DWORD [ebp - 12]
-	mov	ebx, DWORD [ebp - 4]
-	mov	DWORD [defense + 8*eax], ebx
-	mov	ebx, DWORD [ebp - 8]
-	mov	DWORD [defense + 8*eax + 4], ebx
+			mov	eax, DWORD [defense + 8*ecx - 4]; A defender Y pos
+			cmp	eax, DWORD [ebp - 8]		; defenseY
+			jne	next_defender
+
+			mov	ebx, 0	; move not ok
+			next_defender:
+			loop	not_a_tackle_loop
+
+		; If ebx != 1, then move not ok
+		cmp	ebx, 1
+		jne	leave_move_defense
+
+		; Defender move was ok, so update that defender's position for real.
+		mov	eax, DWORD [ebp - 12]		; which defender
+		mov	ebx, DWORD [ebp - 4]		; defenseX
+		mov	DWORD [defense + 8*eax], ebx	; update defender X pos
+		mov	ebx, DWORD [ebp - 8]		; defenseY
+		mov	DWORD [defense + 8*eax + 4], ebx; update defender Y pos
+
 
 	leave_move_defense:
 
-	popa
+	pop	edx
+	pop	ecx
+	pop	ebx
+	pop	eax
 
 	leave
 	ret
@@ -970,7 +1121,8 @@ move_defense:
 ;
 ; void drawtouchdown()
 ;
-
+; Draw the touchdown splash screen
+;
 segment .data
 
 touchdownstr	db	10
@@ -1000,7 +1152,8 @@ drawtouchdown:
 ;
 ; void drawfieldgoalgood()
 ;
-
+; Draw the field goal good splash screen
+;
 segment .data
 
 fggoodstr	db	10
@@ -1030,7 +1183,8 @@ drawfieldgoalgood:
 ;
 ; void drawfieldgoalmiss()
 ;
-
+; Draw the field goal miss splash screen
+;
 segment .data
 
 fgmissstr	db	10
@@ -1060,7 +1214,8 @@ drawfieldgoalmiss:
 ;
 ; void drawtackle()
 ;
-
+; Draw the tackle splash screen
+;
 segment .data
 
 tacklestr	db	10
@@ -1090,7 +1245,8 @@ drawtackle:
 ;
 ; void drawpunt()
 ;
-
+; Draw the punt splash screen
+;
 segment .data
 
 puntstr		db	10
@@ -1121,8 +1277,7 @@ drawpunt:
 ; void drawboard()
 ;
 ; Draw the playing board
-
-
+;
 segment .data
 
 boardstr	db	"                                                    ", 10
@@ -1182,10 +1337,12 @@ drawboard:
 	push	edx
 
 
+; Could combine these all into 1 loop
+
 	; draw players into the boardstr
 	lea	ebx, [ebp - 4]
-	push	DWORD [offense + 4]		; offense Y
-	push	DWORD [offense]			; offense X
+	push	DWORD [offense + 4]		; offenseY
+	push	DWORD [offense]			; offenseX
 	call	calc_player_offset
 	add	esp, 8
 	mov	[ebx], eax			; save offset to local var
@@ -1193,20 +1350,28 @@ drawboard:
 
 	mov	ecx, NUM_DEFENSE
 	draw_defense:
-	sub	ebx, 4
-	push	DWORD [defense + 8*ecx - 4]	; defender Y
-	push	DWORD [defense + 8*ecx - 8]	; defender X
-	call	calc_player_offset
-	add	esp, 8
-	mov	DWORD [ebx], eax			; save offset to local var
-	mov	BYTE [boardstr + eax], DEFENSE_CHAR
-	loop	draw_defense
+		sub	ebx, 4
+		push	DWORD [defense + 8*ecx - 4]	; defender Y
+		push	DWORD [defense + 8*ecx - 8]	; defender X
+		call	calc_player_offset
+		add	esp, 8
+		mov	DWORD [ebx], eax			; save offset to local var
+		mov	BYTE [boardstr + eax], DEFENSE_CHAR
+		loop	draw_defense
+
 
 
 
 	call	homecursor
 
+	; Used for modulus arithmetic when 2 or more digits
 	mov	ebx, 10
+
+	;
+	; For drawing the board, the printf() function is used.
+	;
+	; Push all the parameters ...
+	;
 
 	; some state info
 	push	DWORD [direction]
@@ -1217,7 +1382,7 @@ drawboard:
 	push	DWORD [playrunning]
 	push	DWORD [tackle]
 
-	; yards to go
+	; yards to go : 2 digits
 	push_yards_to_go:
 	xor	edx, edx
 	mov	eax, DWORD [yardstogo]
@@ -1225,7 +1390,7 @@ drawboard:
 	push	edx
 	push	eax
 
-	; field position
+	; field position : 2 digits and the side indicator
 	xor	edx, edx
 	mov	eax, DWORD [fieldpos]
 	cmp	eax, 50
@@ -1234,40 +1399,40 @@ drawboard:
 	jg	side_defense
 
 	side_midfield:
-	push	' '
-	jmp	pushfield
+		push	' '
+		jmp	pushfield
 
 	side_offense:
-	cmp	DWORD [direction], 0
-	jl	side_offense_2
-	side_offense_1:
-	push	'<'
-	jmp	pushfield
-	side_offense_2:
-	push	'>'
-	jmp	pushfield
+		cmp	DWORD [direction], 0
+		jl	side_offense_2
+		side_offense_1:
+			push	'<'
+			jmp	pushfield
+		side_offense_2:
+			push	'>'
+			jmp	pushfield
 
 	side_defense:
-	neg	eax
-	add	eax, 100
-	cmp	DWORD [direction], 0
-	jl	side_defense_2
-	side_defense_1:
-	push	'>'
-	jmp	pushfield
-	side_defense_2:
-	push	'<'
-	jmp	pushfield
+		neg	eax
+		add	eax, 100
+		cmp	DWORD [direction], 0
+		jl	side_defense_2
+		side_defense_1:
+			push	'>'
+			jmp	pushfield
+		side_defense_2:
+			push	'<'
+			jmp	pushfield
 
 	pushfield:
-	div	ebx
-	push	edx
-	push	eax
+		div	ebx
+		push	edx
+		push	eax
 
-	; down
+	; down : 1 digit
 	push	DWORD [down]
 
-	; time remaining
+	; time remaining : 3 digits
 	xor	edx, edx
 	mov	eax, DWORD [timeremaining]
 	div	ebx
@@ -1277,18 +1442,18 @@ drawboard:
 	push	edx
 	push	eax
 
-	; quarter
+	; quarter : 1 digit
 	push	DWORD [quarter]
 
 
-	; visitor score
+	; visitor score : 2 digits
 	xor	edx, edx
 	mov	eax, DWORD [visitorscore]
 	div	ebx
 	push	edx
 	push	eax
 
-	; visitor possession
+	; visitor possession : 1 character
 	cmp	DWORD [possession], -1
 	je	is_visitor_possession
 	push	' '
@@ -1296,7 +1461,7 @@ drawboard:
 	is_visitor_possession:
 	push	'*'
 
-	; home score
+	; home score : 2 digits
 	push_home_score:
 	xor	edx, edx
 	mov	eax, DWORD [homescore]
@@ -1304,7 +1469,7 @@ drawboard:
 	push	edx
 	push	eax
 
-	; home possession
+	; home possession : 1 character
 	cmp	DWORD [possession], 1
 	je	is_home_possession
 	push	' '
@@ -1348,6 +1513,7 @@ drawboard:
 calc_player_offset:
 	enter	4, 0
 
+	; Arguments:
 	; [ebp + 12] : Y
 	; [ebp + 8]  : X
 
@@ -1379,7 +1545,7 @@ calc_player_offset:
 ; void clearscreen()
 ;
 ; Clear the screen
-
+;
 segment .data
 
 	clearstr	db	0x1b, "[2J", 0
@@ -1394,13 +1560,12 @@ clearscreen:
 	leave
 	ret
 
-
 ;------------------------------------------------------------------------------
 ;
 ; void homecursor()
 ;
 ; Home the cursor
-
+;
 segment .data
 
 	homestr	db	0x1b, "[f", 0
@@ -1422,6 +1587,7 @@ homecursor:
 ; unsigned int random(unsigned int x)
 ;
 ; Returns: A random number between 0 and x-1
+;
 
 segment .data
 
@@ -1430,7 +1596,6 @@ segment .data
 random:
 	enter	4, 0
 
-	; save ebx, ecx, edx
 	push	ebx
 	push	ecx
 	push	edx
@@ -1467,7 +1632,6 @@ random:
 	div	ebx
 	mov	eax, edx
 
-	; restore ebx, ecx, edx
 	pop	edx
 	pop	ecx
 	pop	ebx
