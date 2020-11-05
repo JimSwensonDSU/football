@@ -1,14 +1,13 @@
-; XMake a "hit enter" routine
-; *player movement table
-; *Make a "score" routine
-; *Make a "change possession"  & "change direction" routines
-; *move check_q below check_k, or maybe to top?
-; *defines for KEYS
-; *define for field width
-; *redo deltas in move_defense
-; Xcombine the loops in the drawboard
-; input for setting difficulty
-; *make a splash screen routine
+;
+; IDEAS:
+;
+; - support arbitary field width/length
+; - support arbitrary # defenders (almost there apart from initial state)
+; - Use ascii chart for layout of defense or Random defense placement?
+; - maybe rework process_input() and update_game_state()
+; - color
+; - sound/beep?
+;
 
 
 ;
