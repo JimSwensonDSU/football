@@ -5,7 +5,7 @@
 ; move check_q below check_k, or maybe to top?
 ; *define for field width
 ; *redo deltas in move_defense
-; combine the loops in the drawboard
+; Xcombine the loops in the drawboard
 ; input for setting difficulty
 
 ;
@@ -1360,15 +1360,19 @@ drawboard:
 	push	edx
 
 
-; Could combine these all into 1 loop
-
+	;
 	; draw players into the boardstr
-	lea	ebx, [ebp - 4]
-	push	DWORD [offense + 4]		; offenseY
-	push	DWORD [offense]			; offenseX
+	;
+	; Could combine offense and defense together here in one loop, but
+	; that would then require that the offense and defense in .bss remain
+	; in their current order.  So better to keep separate for clarity.
+	;
+	lea	ebx, [ebp - 4]		; ebx points to offense save slot
+	push	DWORD [offense + 4]	; offenseY
+	push	DWORD [offense]		; offenseX
 	call	calc_player_offset
 	add	esp, 8
-	mov	[ebx], eax			; save offset to local var
+	mov	[ebx], eax		; save offset to local var
 	mov	BYTE [boardstr + eax], OFFENSE_CHAR
 
 	mov	ecx, NUM_DEFENSE
@@ -1378,11 +1382,9 @@ drawboard:
 		push	DWORD [defense + 8*ecx - 8]	; defender X
 		call	calc_player_offset
 		add	esp, 8
-		mov	DWORD [ebx], eax			; save offset to local var
+		mov	DWORD [ebx], eax		; save offset to local var
 		mov	BYTE [boardstr + eax], DEFENSE_CHAR
 		loop	draw_defense
-
-
 
 
 	call	homecursor
