@@ -29,8 +29,10 @@
 %define	MIN_PUNT	20	; minimum punt distance
 %define	MAX_PUNT	60	; maximum punt distance
 %define	GAME_TIME	150	; length of a quarter
+
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
+%define DEFENSE_COUNTER	5	; Number of ticks between moving defense
 
 %define NUM_DEFENSE	5
 
@@ -66,6 +68,7 @@ segment .bss
 	defense		resd	2*NUM_DEFENSE	; N sets of X,Y
 
 	; counters
+	defense_counter	resd	1
 	timer_counter	resd	1
 
 segment .text
@@ -106,6 +109,8 @@ new_game:
 		add	esp, 4
 
 		call	process_input
+
+		call	move_defense
 
 		cmp	DWORD [gameover], 1
 		je	end_game
@@ -153,6 +158,7 @@ init_game:
 	mov	DWORD [possession], 1
 
 	mov	DWORD [timer_counter], TIMER_COUNTER
+	mov	DWORD [defense_counter], DEFENSE_COUNTER
 
 	call	init_player_positions
 
@@ -175,8 +181,7 @@ init_player_positions:
 	mov	DWORD [offense], 0
 	mov	DWORD [offense + 4], 1
 
-	;mov	DWORD [defense],      3
-	mov	DWORD [defense],      1
+	mov	DWORD [defense],      3
 	mov	DWORD [defense + 4],  0
 
 	mov	DWORD [defense + 8],  3
@@ -198,8 +203,7 @@ init_player_positions:
 	mov	DWORD [offense], 9
 	mov	DWORD [offense + 4], 1
 
-	;mov	DWORD [defense],      6
-	mov	DWORD [defense],      8
+	mov	DWORD [defense],      6
 	mov	DWORD [defense + 4],  0
 
 	mov	DWORD [defense + 8],  6
@@ -457,6 +461,7 @@ update_game_state:
 	mov	DWORD [direction], eax
 	mov	DWORD [timeremaining], GAME_TIME
 	mov	DWORD [timer_counter], TIMER_COUNTER
+	mov	DWORD [defense_counter], DEFENSE_COUNTER
 	call	init_player_positions
 	jmp	update_game_state_done
 
@@ -469,6 +474,7 @@ update_game_state:
 	mov	DWORD [direction], 1
 	mov	DWORD [possession], -1
 	mov	DWORD [timer_counter], TIMER_COUNTER
+	mov	DWORD [defense_counter], DEFENSE_COUNTER
 	call	init_player_positions
 	jmp	update_game_state_done
 
@@ -809,6 +815,154 @@ move_offense:
 
 	leave
 	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void move_defense()
+;
+move_defense:
+	enter	20, 0
+
+	; [ebp - 4]   : save defenseX
+	; [ebp - 8]   : save defenseY
+	; [ebp - 12]  : defender to move
+	; [ebp - 16]  : deltaX
+	; [ebp - 20]  : deltaY
+
+	pusha
+
+	cmp	DWORD [playrunning], 0
+	je	leave_move_defense
+
+	dec	DWORD [defense_counter]
+	jnz	leave_move_defense
+	mov	DWORD [defense_counter], DEFENSE_COUNTER
+
+	; Move defense
+	;
+	; Pick one defender at random to move.
+	; Defenders want to move towards the offense.
+	; Will either move one space in X or Y position.
+
+	push	NUM_DEFENSE
+	call	random
+	add	esp, 4
+	mov	DWORD [ebp - 12], eax
+
+	; save that defender's position
+	mov	ebx, DWORD [defense + 8*eax]
+	mov	DWORD [ebp - 4], ebx
+	mov	ebx, DWORD [defense + 8*eax + 4]
+	mov	DWORD [ebp - 8], ebx
+
+
+	; Calculate deltaX, deltaY to player
+	calc_deltaX:
+	mov	eax, DWORD [offense]
+	cmp	eax, DWORD [ebp - 4]
+	je	equalX
+	jg	greaterX
+	mov	DWORD [ebp - 16], 1
+	jmp	calc_deltaY
+	equalX:
+	mov	DWORD [ebp - 16], 0 
+	jmp	calc_deltaY
+	greaterX:
+	mov	DWORD [ebp - 16], -1
+
+	calc_deltaY:
+	mov	eax, DWORD [offense + 4]
+	cmp	eax, DWORD [ebp - 8]
+	je	equalY
+	jg	greaterY
+	mov	DWORD [ebp - 20], 1
+	jmp	pick_move
+	equalY:
+	mov	DWORD [ebp - 20], 0 
+	jmp	pick_move
+	greaterY:
+	mov	DWORD [ebp - 20], -1
+
+
+	;
+	; If only 1 non-zero, use that.  Otherwise pick at random.
+	;
+	pick_move:
+	cmp	DWORD [ebp - 16], 0	; deltaX
+	je	moveY
+	cmp	DWORD [ebp - 20], 0	; deltaY
+	je	moveX
+	push	2
+	call	random
+	add	esp, 4
+	cmp	eax, 0
+	je	moveY
+	jmp	moveX
+
+	moveX:
+	mov	eax, DWORD [ebp - 4]	; defense X
+	sub	eax, DWORD [ebp - 16]	; deltaX
+	mov	DWORD [ebp - 4], eax
+	jmp	check_move
+
+	moveY:
+	mov	eax, DWORD [ebp - 8]	; defense Y
+	sub	eax, DWORD [ebp - 20]	; deltaY
+	mov	DWORD [ebp - 8], eax
+	jmp	check_move
+
+
+	; If defender would be on same location as offense, then it is a tackle
+	check_move:
+	mov	eax, DWORD [offense]
+	cmp	eax, DWORD [ebp - 4]
+	jne	not_a_tackle
+	mov	eax, DWORD [offense + 4]
+	cmp	eax, DWORD [ebp - 8]
+	jne	not_a_tackle
+
+
+	; Tackle
+	mov	DWORD [tackle], 1
+	mov	DWORD [playrunning], 0
+	mov	DWORD [requireenter], 1
+	jmp	leave_move_defense
+
+
+	; Make sure defender not trying to move on top of another defender.
+	; If not, then update defender's position, otherwise ignore the move.
+	not_a_tackle:
+	mov	ebx, 1
+	mov	ecx, NUM_DEFENSE
+	not_a_tackle_loop:
+	mov	eax, DWORD [defense + 8*ecx - 8]
+	cmp	eax, DWORD [ebp - 4]
+	jne	next_defender
+	mov	eax, DWORD [defense + 8*ecx - 4]
+	cmp	eax, DWORD [ebp - 8]
+	jne	next_defender
+	mov	ebx, 0
+	next_defender:
+	loop	not_a_tackle_loop
+
+	cmp	ebx, 1
+	jne	leave_move_defense
+
+	mov	eax, DWORD [ebp - 12]
+	mov	ebx, DWORD [ebp - 4]
+	mov	DWORD [defense + 8*eax], ebx
+	mov	ebx, DWORD [ebp - 8]
+	mov	DWORD [defense + 8*eax + 4], ebx
+
+	leave_move_defense:
+
+	popa
+
+	leave
+	ret
+
 ;
 ;------------------------------------------------------------------------------
 
