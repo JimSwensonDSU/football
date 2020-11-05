@@ -3,7 +3,7 @@
 ; *Make a "score" routine
 ; *Make a "change possession"  & "change direction" routines
 ; *move check_q below check_k, or maybe to top?
-; defines for KEYS
+; *defines for KEYS
 ; *define for field width
 ; *redo deltas in move_defense
 ; Xcombine the loops in the drawboard
@@ -46,6 +46,14 @@
 %define	MIN_PUNT	20	; minimum punt distance
 %define	MAX_PUNT	60	; maximum punt distance
 %define	GAME_TIME	150	; length of a quarter
+
+%define KEY_UP		'w'	;
+%define KEY_DOWN	's'	;
+%define KEY_LEFT	'a'	;
+%define KEY_RIGHT	'd'	; input keys
+%define	KEY_KICK	'k'	;
+%define	KEY_QUIT	'q'	;
+%define	KEY_ENTER	10	;
 
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
@@ -555,10 +563,8 @@ process_input:
 	;
 	; Checking for quit
 	;
-	; q - Quit
-	;
-	check_q:
-		cmp	al, 'q'
+	check_quit:
+		cmp	al, KEY_QUIT
 		jne	check_enter
 		mov	DWORD [gameover], 1
 		mov	DWORD [requireenter], 0
@@ -568,9 +574,9 @@ process_input:
 	; Is user required to hit enter?
 	check_enter:
 		cmp	DWORD [requireenter], 1
-		jne	check_w
+		jne	check_UP
 
-		cmp	al, 10
+		cmp	al, KEY_ENTER
 		jne	leave_process_input
 		mov	DWORD [requireenter], 0
 		jmp	leave_process_input
@@ -579,33 +585,31 @@ process_input:
 	;
 	; Checking for offense movement
 	;
-	; w, a, s, d - offense player movement
-	;
 ;Could put these into a move table perhaps ...
-	check_w:
-		cmp	al, 'w'
-		jne	check_s
+	check_UP:
+		cmp	al, KEY_UP
+		jne	check_DOWN
 		push	-1	; Y up
 		push	0	; X no move
 		jmp	call_move_offense
 
-	check_s:
-		cmp	al, 's'
-		jne	check_d
+	check_DOWN:
+		cmp	al, KEY_DOWN
+		jne	check_RIGHT
 		push	1	; Y down
 		push	0	; X no move
 		jmp	call_move_offense
 
-	check_d:
-		cmp	al, 'd'
-		jne	check_a
+	check_RIGHT:
+		cmp	al, KEY_RIGHT
+		jne	check_LEFT
 		push	0	; Y no move
 		push	1	; X right
 		jmp	call_move_offense
 
-	check_a:
-		cmp	al, 'a'
-		jne	check_k
+	check_LEFT:
+		cmp	al, KEY_LEFT
+		jne	check_KICK
 		push	0	; Y no move
 		push	-1	; X left
 		jmp	call_move_offense
@@ -621,13 +625,11 @@ process_input:
 
 	; Check for a kick (punt or fieldgoal)
 	;
-	; k - Kick
-	;
 	; - To allow, must be 4th down and no play running.
 	; - if fieldpos >= FIELDGOAL_MIN, try a fieldgoal, otherwise a punt
 	;
-	check_k:
-		cmp	al, 'k'
+	check_KICK:
+		cmp	al, KEY_KICK
 		jne	leave_process_input
 
 		; Must be 4th down
@@ -1320,11 +1322,11 @@ boardstr	db	"                                                    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"                                                    ", 10
-		db	"   INPUTS  Movement: wasd                           ", 10
-		db	"               Kick: k (only on 4th down)           ", 10
-		db	"               Quit: q                              ", 10
+		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT        ", 10
+		db	"         Kick: %c (only on 4th down)                 ", 10
+		db	"         Quit: %c                                    ", 10
 		db	"                                                    ", 10
-		db	"           Hit Enter after each play                ", 10
+		db	"     Hit Enter after each play                      ", 10
 		db	"                                                    ", 10
 		db	"                                                    ", 10
 		db	"----------------------------------------------------", 10
@@ -1407,6 +1409,14 @@ drawboard:
 	push	DWORD [requireenter]
 	push	DWORD [playrunning]
 	push	DWORD [tackle]
+
+	; Keys
+	push	KEY_QUIT
+	push	KEY_KICK
+	push	KEY_RIGHT
+	push	KEY_DOWN
+	push	KEY_LEFT
+	push	KEY_UP
 
 	; yards to go : 2 digits
 	push_yards_to_go:
@@ -1507,7 +1517,7 @@ drawboard:
 	print_the_board:
 	push	boardstr
 	call	printf
-	add	esp, 96
+	add	esp, 120
 
 
 
