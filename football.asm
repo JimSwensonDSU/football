@@ -55,7 +55,7 @@
 %define	KEY_KICK	'k'	;
 %define	KEY_QUIT	'q'	;
 %define	KEY_ENTER	10	;
-%define	KEY_DEBUG	'D'	; toggle debug mode
+%define	KEY_DEBUG	'v'	; toggle debug mode
 
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
@@ -1185,6 +1185,8 @@ touchdownstr	db	10
 		db	"/  ||-   -                               -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
+		db	10, 10, 10, 10, 10, 10, 10, 10, 10
+		db	0
 drawtouchdown:
 	enter	0, 0
 	call	homecursor
@@ -1216,6 +1218,8 @@ fggoodstr	db	10
 		db	"/  ||-   -                               -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
+		db	10, 10, 10, 10, 10, 10, 10, 10, 10
+		db	0
 drawfieldgoalgood:
 	enter	0, 0
 	call	homecursor
@@ -1247,6 +1251,8 @@ fgmissstr	db	10
 		db	"/  ||-   -                               -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
+		db	10, 10, 10, 10, 10, 10, 10, 10, 10
+		db	0
 drawfieldgoalmiss:
 	enter	0, 0
 	call	homecursor
@@ -1278,6 +1284,8 @@ tacklestr	db	10
 		db	"/  ||-   -                               -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
+		db	10, 10, 10, 10, 10, 10, 10, 10, 10
+		db	0
 drawtackle:
 	enter	0, 0
 	call	homecursor
@@ -1309,6 +1317,8 @@ puntstr		db	10
 		db	"/  ||-   -                               -   -||  \ ", 10
 		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
 		db	"   ---------------------------------------------    ", 10
+		db	10, 10, 10, 10, 10, 10, 10, 10, 10
+		db	0
 drawpunt:
 	enter	0, 0
 	call	homecursor
