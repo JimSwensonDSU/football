@@ -3,7 +3,7 @@
 ; *Make a "score" routine
 ; Make a "change possession"  & "change direction" routines
 ; move check_q below check_k, or maybe to top?
-; define for field width
+; *define for field width
 ; redo deltas in move_defense
 ; combine the loops in the drawboard
 
@@ -34,6 +34,8 @@
 %define	OFFENSE_CHAR	'O'	; character for offensive player
 %define	DEFENSE_CHAR	'X'	; character for defensive players
 
+%define FIELD_WIDTH	3	; number of player positions across width of the field
+%define	FIELD_LENGTH	10	; number of player positions along the length of the field
 %define	TOUCHDOWN_PTS	7	; points for a touchdown
 %define	FIELDGOAL_PTS	3	; points for a field goal
 %define	FIELDPOS	20	; starting field position
@@ -822,8 +824,6 @@ move_offense:
 	mov	DWORD [ebp - 12], eax
 
 
-	mov	ebx, 10
-
 	; Calculate new field position based on direction and deltaX
 	update_offense_pos_x:
 		mov	eax, DWORD [direction]
@@ -846,8 +846,9 @@ move_offense:
 		mov	eax, 1
 		mul	DWORD [ebp + 8]		; eax = deltaX
 		add	eax, DWORD [offense]	; eax = offenseX + deltaX
-		add	eax, ebx		; eax = 10 + offenseX + deltaX
-		; mod 10
+		mov	ebx, FIELD_LENGTH
+		add	eax, ebx		; eax = FIELDLENGTH + offenseX + deltaX
+		; mod FIELDLENGTH
 		xor	edx, edx
 		div	ebx
 		mov	DWORD [offense], edx	; new offenseX position
@@ -862,8 +863,8 @@ move_offense:
 		jl	leave_move_offense
 
 		; Can't move below field
-		cmp	eax, 2
-		jg	leave_move_offense
+		cmp	eax, FIELD_WIDTH
+		jge	leave_move_offense
 		mov	DWORD [offense + 4], eax	; new offenseY position
 
 
