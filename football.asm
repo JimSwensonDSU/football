@@ -50,7 +50,8 @@
 %define O_NONBLOCK	2048
 
 %define	ECHO		8
-%define ICANNON		2
+%define	ICANON		2
+%define	ISIG		1
 %define	TCSAFLUSH	2
 
 %define F_GETFL		3
@@ -80,8 +81,9 @@
 %define KEY_RIGHT	'd'
 %define	KEY_KICK	'k'
 %define	KEY_QUIT	'Q'	; uppercase to avoid accidential hits
-%define	KEY_ENTER	10
+%define	KEY_ENTER	0x0a
 %define	KEY_DEBUG	'v'	; toggle debug mode
+%define KEY_CTRLC	0x03
 
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
@@ -98,6 +100,7 @@ segment .data
 	msg_tackle		db	"TACKLED", 0
 	msg_punt		db	"PUNTED", 0
 	msg_gameover		db	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
+	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER, MAN!", 0
 
 segment .bss
 	; save terminal/stdin settings
@@ -106,6 +109,7 @@ segment .bss
 	save_stdin_flags	resb	4
 
 	; game state
+	abort		resd	1
 	hardquit	resd	1
 	gameover	resd	1
 	down		resd	1
@@ -173,6 +177,9 @@ run_game:
 	gameloop:
 		call	drawboard
 
+		cmp	DWORD [abort], 1
+		je	run_game_abort
+
 		cmp	DWORD [hardquit], 1
 		je	run_game_done
 
@@ -218,6 +225,12 @@ run_game:
 		jmp	gameloop
 
 
+	run_game_abort:
+		push	msg_abort
+		call	drawsplash
+		add	esp, 4
+
+
 	run_game_done:
 
 	pop	eax
@@ -236,6 +249,7 @@ run_game:
 init_game:
 	enter	0, 0
 
+	mov	DWORD [hardquit], 1
 	mov	DWORD [hardquit], 0
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
@@ -769,7 +783,20 @@ process_input:
 	;
 	check_quit:
 		cmp	al, KEY_QUIT
+		jne	check_ctrlc
+		mov	DWORD [gameover], 1
+		mov	DWORD [hardquit], 1
+		mov	DWORD [requireenter], 0
+		jmp	leave_process_input
+
+
+	;
+	; Checking for ctrl-c
+	;
+	check_ctrlc:
+		cmp	al, KEY_CTRLC
 		jne	check_enter
+		mov	DWORD [abort], 1
 		mov	DWORD [gameover], 1
 		mov	DWORD [hardquit], 1
 		mov	DWORD [requireenter], 0
@@ -1933,6 +1960,7 @@ get_key:
 ; void terminal_raw_mode()
 ;
 ; Put terminal into raw mode - disable ECHO and ICANON
+; Also disabling SIGINT action on Ctrl-C - disable ISIG
 ; Set STDIN to non-blocking reads.
 ;
 terminal_raw_mode:
@@ -1956,7 +1984,8 @@ terminal_raw_mode:
 	; tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 	mov	eax, 0xffffffff
 	xor	eax, ECHO
-	xor	eax, ICANNON
+	xor	eax, ICANON
+	xor	eax, ISIG
 	and	DWORD [save_termios + 12], eax
 	push	save_termios	; address of struct termios
 	push	TCSAFLUSH
