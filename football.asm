@@ -1489,7 +1489,7 @@ debugstr	db	"                                                    ", 10
 		db	"                                                    ", 10
 		db	"   State Variables       Hit 0 - 5 to change skill  ", 10
 		db	" -------------------                                ", 10
-		db	"          tackle: %d       0 - easy (default)       ", 10
+		db	"          tackle: %d       0 - sarcastaball         ", 10
 		db	"     playrunning: %d       3 - challenging          ", 10
 		db	"    requireenter: %d       5 - hurt me plenty       ", 10
 		db	"        fieldpos: %d                                ", 10
