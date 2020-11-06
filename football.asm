@@ -30,7 +30,6 @@
 ; - support arbitary field width/length
 ; - support arbitrary # defenders (almost there apart from initial state)
 ; - Use ascii chart for layout of defense or Random defense placement?
-; - maybe rework process_input() and update_game_state()
 ; - color
 ; - sound/beep?
 ;
@@ -122,7 +121,7 @@ segment .bss
 	playrunning	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
 	punt		resd	1	; 1 = yes, 0 = no
-	fieldgoal	resd	1	; 1 = good, 0 = none, -1 = miss
+	fieldgoal	resd	1	; 1 = yes, 0 = no
 
 	; location of players
 	offense		resd	2		; X, Y
@@ -360,44 +359,81 @@ update_game_state:
 	;
 	; check for a field goal
 	;
+	; - attempt the field goal
+	; - if good, update score
+	; - draw the board, to reflect updated score
 	; - display the good/miss splash screen
 	; - pause until user hits enter
+	; - update game state
 	;
 	state_fieldgoal:
-		cmp	DWORD [fieldgoal], 0
-		je	state_punt
+		cmp	DWORD [fieldgoal], 1
+		jne	state_punt
 
-		; There was a field goal attempt
-		mov	DWORD [requireenter], 1
-		call	drawboard
+		; Perform field goal attempt
+		mov	DWORD [fieldgoal], 0
+		call	do_fieldgoal	; eax = result of field goal
 
-		cmp	DWORD [fieldgoal], -1
-		je	fg_miss
+		cmp	eax, 0
+		je	state_fieldgoal_miss
 
 		; Field goal was good
-		push	msg_fieldgoalgood
-		call	drawsplash
+		state_fieldgoal_good:
+		push	FIELDGOAL_PTS
+		call	score
 		add	esp, 4
-		jmp	state_fieldgoal_loop
+		call	drawboard
+		push	msg_fieldgoalgood
+		jmp	state_fieldgoal_splash
 
 		; Field goal missed
-		fg_miss:
+		state_fieldgoal_miss:
 		push	msg_fieldgoalmiss
+		jmp	state_fieldgoal_splash
+
+		state_fieldgoal_splash:
 		call	drawsplash
 		add	esp, 4
 
 		; Loop until user hits enter
+		mov	DWORD [requireenter], 1
 		state_fieldgoal_loop:
 			call	process_input
 			cmp	DWORD [requireenter], 1
 			je	state_fieldgoal_loop
-			mov	DWORD [fieldgoal], 0
-			jmp	state_end_of_quarter
+
+		;
+		; Update game state
+		;
+		; good - other team starts at FIELDPOS
+		; miss - other team starts at fieldpos
+		;
+		mov	DWORD [fieldpos], FIELDPOS
+		mov	DWORD [lineofscrimmage], FIELDPOS
+		mov	DWORD [down], 1
+		mov	DWORD [yardstogo], 10
+		call	switch_team
+		call	init_player_positions
+
+		; good
+		cmp	eax, 1
+		jmp	state_end_of_quarter
+
+		; miss
+		mov	eax, 100
+		sub	eax, DWORD [fieldpos]
+		mov	DWORD [fieldpos], eax
+		mov	DWORD [lineofscrimmage], eax
+
+		jmp	state_end_of_quarter
 
 
 	;
 	; check for a punt
 	;
+	; - perform the punt
+	; - update game state
+	; - draw the board, to reflect all updates
 	; - display the punt splash screen
 	; - pause until user hits enter
 	;
@@ -405,16 +441,28 @@ update_game_state:
 		cmp	DWORD [punt], 1
 		jne	state_touchdown
 
-		; There was a punt
-		mov	DWORD [requireenter], 1
+		; Perform punt
 		mov	DWORD [punt], 0
+		call	do_punt		; eax = punt distance
 
+		; update game state
+		mov	DWORD [fieldpos], eax
+		mov	DWORD [lineofscrimmage], eax
+		mov	DWORD [down], 1
+		mov	DWORD [yardstogo], 10
+		call	switch_team
+		call	init_player_positions
+
+		; draw the board
 		call	drawboard
+
+		; show punt splash screen
 		push	msg_punt
 		call	drawsplash
 		add	esp, 4
 
 		; Loop until user hits enter
+		mov	DWORD [requireenter], 1
 		state_punt_loop:
 			call	process_input
 			cmp	DWORD [requireenter], 1
@@ -753,11 +801,13 @@ process_input:
 		; Are they within field goal range?
 		cmp	DWORD [fieldpos], FIELDGOAL_MIN
 		jge	try_field_goal
-		call	do_punt
+
+		try_punt:
+		mov	DWORD [punt], 1
 		jmp	leave_process_input
 
 		try_field_goal:
-		call	do_fieldgoal
+		mov	DWORD [fieldgoal], 1
 		jmp	leave_process_input
 
 
@@ -773,14 +823,14 @@ process_input:
 
 ;------------------------------------------------------------------------------
 ;
-; void do_fieldgoal()
+; int do_fieldgoal()
 ;
 ; Attempt a field goal, with a FIELDGOAL_PCT success rate.
 ;
+; Return: 1 - good, 0 - miss
+;
 do_fieldgoal:
 	enter	0, 0
-
-	push	eax
 
 	; Check for field goal good/miss
 	push	100
@@ -791,36 +841,15 @@ do_fieldgoal:
 
 	; Field goal was good
 	fieldgoal_good:
-		mov	DWORD [fieldgoal], 1
-		mov	DWORD [fieldpos], FIELDPOS
-		mov	DWORD [lineofscrimmage], FIELDPOS
-
-		; Increment score
-		push	FIELDGOAL_PTS
-		call	score
-		add	esp, 4
+		mov	eax, 1
 		jmp	leave_do_fieldgoal
-
 
 	; Field goal missed
 	fieldgoal_miss:
-		mov	DWORD [fieldgoal], -1
-		mov	eax, 100
-		sub	eax, DWORD [fieldpos]
-		mov	DWORD [fieldpos], eax
-		mov	DWORD [lineofscrimmage], eax
+		mov	eax, 1
 		jmp	leave_do_fieldgoal
 
-
 	leave_do_fieldgoal:
-		call	switch_team
-
-		mov	DWORD [down], 1
-		mov	DWORD [yardstogo], 10
-
-		call	init_player_positions
-
-	pop	eax
 
 	leave
 	ret
@@ -829,17 +858,15 @@ do_fieldgoal:
 
 ;------------------------------------------------------------------------------
 ;
-; void do_punt()
+; int do_punt()
 ;
-; Generates a random int between MIN_PUNT and MAX_PUNT and adds to fieldpos.
-; If >= 100, then touchback.
+; Generates a random int between MIN_PUNT and MAX_PUNT
+; Returns new fieldpos, checking for a touchback.
+;
+; Return: new fieldpos
 ;
 do_punt:
 	enter	0, 0
-
-	push	eax
-
-	mov	DWORD [punt], 1
 
 	;
 	; Random punt distance between MIN_PUNT and MAX_PUNT
@@ -852,29 +879,19 @@ do_punt:
 	add	eax, MIN_PUNT
 
 	;
-	; Update field position, checking for a touchback
+	; Calculate new field position, checking for a touchback.
 	;
-	add	DWORD [fieldpos], eax
-	cmp	DWORD [fieldpos], 100
-	jge	punt_touchback
+	add	eax, DWORD [fieldpos]
+	cmp	eax, 100
+	jl	punt_calc_new_fieldpos
+
+	; It was a touchback
 	mov	eax, 100
-	sub	eax, DWORD [fieldpos]
-	mov	DWORD [fieldpos], eax
-	mov	DWORD [lineofscrimmage], eax
-	jmp	leave_do_punt
+	sub	eax, FIELDPOS
 
-	punt_touchback:
-		mov	DWORD [fieldpos], FIELDPOS
-		mov	DWORD [lineofscrimmage], FIELDPOS
-
-	leave_do_punt:
-		call	switch_team
-
-		mov	DWORD [down], 1
-		mov	DWORD [yardstogo], 10
-		call	init_player_positions
-
-	pop	eax
+	punt_calc_new_fieldpos:
+	neg	eax
+	add	eax, 100
 
 	leave
 	ret
