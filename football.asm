@@ -157,7 +157,7 @@ asm_main:
 
 ;------------------------------------------------------------------------------
 ;
-; new_game()
+; void new_game()
 ;
 new_game:
 	enter	0, 0
@@ -1612,6 +1612,8 @@ drawboard:
 ;
 ; Calculate byte offset in boardstr for a player at position X,Y
 ;
+; Return: the byte offset
+;
 calc_player_offset:
 	enter	4, 0
 
@@ -1688,7 +1690,7 @@ homecursor:
 ;
 ; unsigned int random(unsigned int x)
 ;
-; Returns: A random number between 0 and x-1
+; Return: A random number between 0 and x-1
 ;
 
 segment .data
@@ -1749,8 +1751,9 @@ random:
 ; char get_key()
 ;
 ; Reads STDIN for a single character input.
-; Returns: read character on success.
-;          otherwise, -1
+;
+; Return: read character on success.
+;         otherwise, -1
 ;
 get_key:
 	enter	4, 0
