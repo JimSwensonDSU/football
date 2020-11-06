@@ -18,9 +18,9 @@
 ;   - Instead of sound, a splash screen is used to communicate
 ;     game events.
 ;
-;   - No "ST"/"SC" keys needed as in original.  Instead, all
-;     pertitent game stats are always displayed.  Enter is
-;     used to enable the next play.
+;   - No "ST"/"SC" keys needed as in remake/original.  Instead, all
+;     pertinent game stats are always displayed.  Enter is used
+;     to enable the next play.
 ;
 ;   - As in the original, initiating any movement will start
 ;     the play.
