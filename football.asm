@@ -1484,18 +1484,16 @@ boardstr	db	"                                                    ", 10
 		db	0
 
 debugstr	db	"                                                    ", 10
-		db	"----------------------------------------------------", 10
-		db	"                                                    ", 10
-		db	"   State Variables       Hit 0 - 5 to change skill  ", 10
-		db	" -------------------                                ", 10
-		db	"          tackle: %d       0 - sarcastaball         ", 10
-		db	"     playrunning: %d       3 - challenging          ", 10
-		db	"    requireenter: %d       5 - hurt me plenty       ", 10
+		db	"   State Variables       Hit 0 - 5 to change skill: ", 10
+		db	" -------------------     0 - sarcastaball           ", 10
+		db	"          tackle: %d      3 - challenging           ", 10
+		db	"     playrunning: %d      5 - hurt me plenty        ", 10
+		db	"    requireenter: %d                                ", 10
 		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
-		db	"      possession: %d                                ", 10
-		db	"       direction: %d                                ", 10
-		db	"      skilllevel: %d                                ", 10
+		db	"      possession: %d     Players X,Y:               ", 10
+		db	"       direction: %d      O: %d,%d                    ", 10
+		db	"      skilllevel: %d      D: %d,%d %d,%d %d,%d %d,%d %d,%d    ", 10
 		db	0
 
 drawboard:
@@ -1695,10 +1693,25 @@ drawboard:
 
 
 	; some state info
+
+	; defense
+	mov	ecx, NUM_DEFENSE
+	push_defense_pos:
+		push	DWORD [defense + 8*ecx-4]	; defenseX
+		push	DWORD [defense + 8*ecx-8]	; defenseX
+		loop	push_defense_pos
+
 	push	DWORD [skilllevel]
+
+	; offense
+	push	DWORD [offense + 4]	; offenseY
+	push	DWORD [offense]		; offenseX
+
 	push	DWORD [direction]
 	push	DWORD [possession]
+
 	push	DWORD [lineofscrimmage]
+
 	push	DWORD [fieldpos]
 	push	DWORD [requireenter]
 	push	DWORD [playrunning]
@@ -1706,7 +1719,7 @@ drawboard:
 
 	push	debugstr
 	call	printf
-	add	esp, 36
+	add	esp, 84
 
 
 	leave_drawboard:
