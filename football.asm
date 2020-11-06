@@ -249,7 +249,7 @@ run_game:
 init_game:
 	enter	0, 0
 
-	mov	DWORD [hardquit], 1
+	mov	DWORD [abort], 0
 	mov	DWORD [hardquit], 0
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
