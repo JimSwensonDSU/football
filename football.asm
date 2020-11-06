@@ -228,8 +228,6 @@ init_game:
 
 	call	init_player_positions
 
-	pop	eax
-
 	leave
 	ret
 ;
