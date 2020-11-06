@@ -1,6 +1,32 @@
 ;
-; IDEAS:
+; football
 ;
+; Jim Swenson
+; Jim.Swenson@trojans.dsu.edu
+;
+; An implementation of the Mattel Electronic Football game.
+;
+; This implementation is based on the remake.
+;
+;   - Field length is 10.  Original was 9 positions long.
+;
+;   - Supports running backwards, but not behind the line
+;     of scrimmage.  Original supported only forward.
+;
+;   - Supports kick (punt or field goal)
+;
+;   - Instead of sound, a splash screen is used to communicate
+;     game events.
+;
+;   - No "ST"/"SC" keys needed as in original.  Instead, all
+;     pertitent game stats are always displayed.  Enter is
+;     used to enable the next play.
+;
+;   - As in the original, initiating any movement will start
+;     the play.
+;
+;
+; Ideas for improvement:
 ; - support arbitary field width/length
 ; - support arbitrary # defenders (almost there apart from initial state)
 ; - Use ascii chart for layout of defense or Random defense placement?
@@ -8,7 +34,6 @@
 ; - color
 ; - sound/beep?
 ;
-
 
 ;
 ; Values for system/library calls
