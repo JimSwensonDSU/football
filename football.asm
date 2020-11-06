@@ -1597,7 +1597,7 @@ drawboard:
 
 	push	debugstr
 	call	printf
-	add	esp, 32
+	add	esp, 36
 
 
 	leave_drawboard:
