@@ -395,12 +395,8 @@ update_game_state:
 		call	drawsplash
 		add	esp, 4
 
-		; Loop until user hits enter
-		mov	DWORD [requireenter], 1
-		state_fieldgoal_loop:
-			call	process_input
-			cmp	DWORD [requireenter], 1
-			je	state_fieldgoal_loop
+		; Wait until user hits enter
+		call	wait_for_enter
 
 		;
 		; Update game state
@@ -461,13 +457,10 @@ update_game_state:
 		call	drawsplash
 		add	esp, 4
 
-		; Loop until user hits enter
-		mov	DWORD [requireenter], 1
-		state_punt_loop:
-			call	process_input
-			cmp	DWORD [requireenter], 1
-			je	state_punt_loop
-			jmp	state_end_of_quarter
+		; Wait until user hits enter
+		call	wait_for_enter
+
+		jmp	state_end_of_quarter
 
 
 	;
@@ -489,7 +482,6 @@ update_game_state:
 		jl	state_tackle
 
 		; It's a touchdown
-		mov	DWORD [requireenter], 1
 		mov	DWORD [playrunning], 0
 
 		; Increment score
@@ -502,12 +494,8 @@ update_game_state:
 		call	drawsplash
 		add	esp, 4
 
-		; Loop until user hits enter
-		state_touchdown_loop:
-			call	process_input
-			cmp	DWORD [requireenter], 1
-			je	state_touchdown_loop
-
+		; Wait until user hits enter
+		call	wait_for_enter
 
 		; Switch to other team
 		mov	DWORD [fieldpos], FIELDPOS
@@ -540,18 +528,14 @@ update_game_state:
 		jne	state_something_else
 
 		; It's a tackle
-		mov	DWORD [requireenter], 1
 		call	drawboard
 
 		push	msg_tackle
 		call	drawsplash
 		add	esp, 4
 
-		; Loop until user hits enter
-		state_tackle_loop:
-			call	process_input
-			cmp	DWORD [requireenter], 1
-			je	state_tackle_loop
+		; Wait until user hits enter
+		call	wait_for_enter
 
 		; update field position
 		mov	DWORD [tackle], 0
@@ -829,6 +813,27 @@ process_input:
 
 ;------------------------------------------------------------------------------
 ;
+; void wait_for_enter()
+;
+; Loop until user hits enter
+;
+wait_for_enter:
+	enter	0, 0
+
+	mov	DWORD [requireenter], 1
+
+	wait_for_enter_loop:
+		call	process_input
+		cmp	DWORD [requireenter], 1
+		je	wait_for_enter_loop
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
 ; int do_fieldgoal()
 ;
 ; Attempt a field goal, with a FIELDGOAL_PCT success rate.
@@ -1014,7 +1019,6 @@ move_offense:
 
 		; Offense player is tackled
 		mov	DWORD [playrunning], 0
-		mov	DWORD [requireenter], 1
 
 		; restore the saved values for offense and fieldpos
 		mov	eax, DWORD [ebp - 4]		; offenseX
@@ -1170,7 +1174,6 @@ move_defense:
 	; We don't update the real defense position for this case.
 	mov	DWORD [tackle], 1
 	mov	DWORD [playrunning], 0
-	mov	DWORD [requireenter], 1
 	jmp	leave_move_defense
 
 
