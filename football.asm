@@ -359,11 +359,12 @@ decrement_timeremaining:
 	leave_decrement_timeremaining:
 	leave
 	ret
+;
 ;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
 ;
-; void reset_defense_count()
+; void reset_defense_counter()
 ;
 ; Resets the defense counter, taking skilllevel into account
 ;
@@ -382,6 +383,7 @@ reset_defense_counter:
 
 	leave
 	ret
+;
 ;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
@@ -479,7 +481,7 @@ update_game_state:
 
 		; Perform punt
 		mov	DWORD [punt], 0
-		call	do_punt		; eax = punt distance
+		call	do_punt		; eax = new fieldpos
 
 		; update game state
 		mov	DWORD [fieldpos], eax
@@ -889,7 +891,7 @@ do_fieldgoal:
 	call	random
 	add	esp, 4
 	cmp	eax, FIELDGOAL_PCT
-	jg	fieldgoal_miss
+	jge	fieldgoal_miss
 
 	; Field goal was good
 	fieldgoal_good:
@@ -929,6 +931,8 @@ do_punt:
 	call	random
 	add	esp, 4
 	add	eax, MIN_PUNT
+	inc	eax
+	inc	eax
 
 	;
 	; Calculate new field position, checking for a touchback.
@@ -964,7 +968,7 @@ move_offense:
 	; Arguments:
 	; [ebp + 12] : deltaY
 	; [ebp + 8]  : deltaX
-
+	;
 	; Local vars:
 	; [ebp - 4]   : save offenseX
 	; [ebp - 8]   : save offenseY
@@ -1132,7 +1136,7 @@ move_defense:
 	mov	ebx, DWORD [defense + 8*eax]
 	mov	DWORD [ebp - 4], ebx		; defenseX
 	mov	ebx, DWORD [defense + 8*eax + 4]
-	mov	DWORD [ebp - 8], ebx		; defenseX
+	mov	DWORD [ebp - 8], ebx		; defenseY
 
 
 	; Calculate deltaX, deltaY to offense
@@ -1193,6 +1197,7 @@ move_defense:
 		mov	DWORD [ebp - 4], eax
 		jmp	check_move
 
+	; Move defender in Y direction
 	moveY:
 		mov	eax, DWORD [ebp - 8]	; defense Y
 		sub	eax, DWORD [ebp - 20]	; deltaY
@@ -1259,7 +1264,6 @@ move_defense:
 
 	leave
 	ret
-
 ;
 ;------------------------------------------------------------------------------
 
@@ -1357,13 +1361,13 @@ drawsplash:
 
 	; Arguments:
 	; [ebp + 8] : s
-
+	;
 	; Local vars:
 	; [ebp - 4]  : Location of the * in the splashstr
 	; [ebp - 8]  : Length of s / 2
 	; [ebp - 12] : Length of s
 
-	; Find offset to the center of the message line (search for *)
+	; Find address of the center of the message line (search for *)
 	mov	edi, splashstr
 	mov	ecx, 0FFFFFFFFh
 	mov	al, '*'
@@ -1376,12 +1380,10 @@ drawsplash:
 
 	; Calculate length of s
 	mov	edi, [ebp + 8]
-	;mov	ecx, 0FFFFFFFFh
 	mov	ecx, MAX_S_LEN+1
 	xor	al, al
 	cld
 	repnz	scasb
-	;mov	edx, 0FFFFFFFEh
 	mov	edx, MAX_S_LEN
 	sub	edx, ecx	; edx = length of s
 	mov	DWORD [ebp - 12], edx
@@ -1392,7 +1394,7 @@ drawsplash:
 	; Copy s into the splashstr
 	mov	esi, [ebp + 8]
 	mov	edi, [ebp - 4]
-	sub	edi, ecx
+	sub	edi, [ebp - 8]
 	mov	ecx, edx
 	cld
 	rep	movsb
@@ -1653,10 +1655,10 @@ drawboard:
 	mov	ebx, ebp
 	mov	ecx, 1+NUM_DEFENSE
 	restore_board:
-	sub	ebx, 4
-	mov	eax, DWORD [ebx]
-	mov	BYTE [boardstr + eax], ' '
-	loop	restore_board
+		sub	ebx, 4
+		mov	eax, DWORD [ebx]
+		mov	BYTE [boardstr + eax], ' '
+		loop	restore_board
 
 
 	;
@@ -1708,6 +1710,9 @@ calc_player_offset:
 	; Arguments:
 	; [ebp + 12] : Y
 	; [ebp + 8]  : X
+	;
+	; Local vars:
+	; [ebp - 4] : temp variable for calculation
 
 	push	ebx
 	push	edx
@@ -1716,12 +1721,12 @@ calc_player_offset:
 	mov	eax, DWORD [ebp + 12]
 	mov	ebx, 106
 	mul	ebx
-	mov	DWORD [ebp - 4], eax
+	mov	DWORD [ebp - 4], eax	; Y*106
 
 	mov	eax, DWORD [ebp + 8]
 	mov	ebx, 4
-	mul	ebx
-	add	eax, DWORD [ebp - 4]
+	mul	ebx			; eax = X*4
+	add	eax, DWORD [ebp - 4]	; eax = Y*106 + X*4
 	add	eax, 335
 
 	pop	edx
@@ -1751,6 +1756,8 @@ clearscreen:
 
 	leave
 	ret
+;
+;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
 ;
@@ -1793,7 +1800,6 @@ hidecursor:
 
 	leave
 	ret
-
 ;
 ;------------------------------------------------------------------------------
 
@@ -1816,7 +1822,6 @@ showcursor:
 
 	leave
 	ret
-
 ;
 ;------------------------------------------------------------------------------
 
@@ -1826,13 +1831,18 @@ showcursor:
 ;
 ; Return: A random number between 0 and x-1
 ;
-
 segment .data
 
 	urandom	db	"/dev/urandom", 0
 
 random:
 	enter	4, 0
+
+	; Arguments:
+	; [ebp + 8] : x
+	;
+	; Local vars:
+	; [ebp - 4] : Hold int read from /dev/urandom
 
 	push	ebx
 	push	ecx
@@ -1864,9 +1874,9 @@ random:
 	; eax should be 0
 
 	; Compute [ebp - 4] % [ebp + 8]
-	mov	eax, DWORD [ebp - 4]
+	mov	eax, DWORD [ebp - 4]	; int read
 	xor	edx, edx
-	mov	ebx, DWORD [ebp + 8]
+	mov	ebx, DWORD [ebp + 8]	; x
 	div	ebx
 	mov	eax, edx
 
@@ -1892,6 +1902,7 @@ random:
 get_key:
 	enter	4, 0
 
+	; Local vars:
 	; [ebp - 4] : Read char
 
 	push	ebx
@@ -1906,6 +1917,7 @@ get_key:
 	int	0x80
 
 	mov	eax, DWORD [ebp - 4]
+	and	eax, 0x000000ff
 
 	pop	edx
 	pop	ecx
