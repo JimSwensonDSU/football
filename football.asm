@@ -954,12 +954,11 @@ do_punt:
 	;
 	mov	eax, MAX_PUNT
 	sub	eax, MIN_PUNT
+	inc	eax
 	push	eax
-	call	random
+	call	random		; eax : 0 .. (MAX_PUNT - MIN_PUNT)
 	add	esp, 4
-	add	eax, MIN_PUNT
-	inc	eax
-	inc	eax
+	add	eax, MIN_PUNT	; eax : MIN_PUNT .. MAX_PUNT
 
 	;
 	; Calculate new field position, checking for a touchback.
