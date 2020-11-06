@@ -27,11 +27,12 @@
 ;
 ;
 ; Ideas for improvement:
+; - implement random fumbles on a tackle
 ; - support arbitary field width/length
-; - support arbitrary # defenders (almost there apart from initial state)
+; - support arbitrary number defenders (almost there apart from initial state)
 ; - Use ascii chart for layout of defense or Random defense placement?
 ; - color
-; - sound/beep?
+; - sound/beep
 ;
 
 ;
