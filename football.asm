@@ -97,6 +97,7 @@ segment .data
 	msg_fieldgoalmiss	db	"FIELD GOAL MISSED", 0
 	msg_tackle		db	"TACKLED", 0
 	msg_punt		db	"PUNTED", 0
+	msg_gameover		db	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
 
 segment .bss
 	; save terminal/stdin settings
@@ -105,6 +106,7 @@ segment .bss
 	save_stdin_flags	resb	4
 
 	; game state
+	hardquit	resd	1
 	gameover	resd	1
 	down		resd	1
 	fieldpos	resd	1
@@ -146,7 +148,7 @@ asm_main:
 	; ********** CODE STARTS HERE **********
 
 	call	terminal_raw_mode
-	call	new_game
+	call	run_game
 	call	terminal_restore_mode
 
 	; *********** CODE ENDS HERE ***********
@@ -157,15 +159,21 @@ asm_main:
 
 ;------------------------------------------------------------------------------
 ;
-; void new_game()
+; void run_game()
 ;
-new_game:
+run_game:
 	enter	0, 0
+
+	push	eax
+
 	call	init_game
 	call	clearscreen
 
 	gameloop:
 		call	drawboard
+
+		cmp	DWORD [hardquit], 1
+		je	run_game_done
 
 		cmp	DWORD [gameover], 1
 		je	end_game
@@ -184,7 +192,34 @@ new_game:
 
 		jmp	gameloop
 
+
 	end_game:
+		push	msg_gameover
+		call	drawsplash
+		add	esp, 4
+		call	wait_for_enter
+
+		cmp	DWORD [hardquit], 1
+		je	run_game_done
+
+		; initialize a new game.  Carry over these settings:
+		;
+		; - skilllevel
+		; - debug_on
+
+		push	DWORD [skilllevel]
+		push	DWORD [debug_on]
+		call	init_game
+		pop	eax
+		mov	DWORD [debug_on], eax
+		pop	eax
+		mov	DWORD [skilllevel], eax
+		jmp	gameloop
+
+
+	run_game_done:
+
+	pop	eax
 
 	leave
 	ret
@@ -200,6 +235,7 @@ new_game:
 init_game:
 	enter	0, 0
 
+	mov	DWORD [hardquit], 0
 	mov	DWORD [gameover], 0
 	mov	DWORD [down], 1
 	mov	DWORD [fieldpos], FIELDPOS
@@ -730,6 +766,7 @@ process_input:
 		cmp	al, KEY_QUIT
 		jne	check_enter
 		mov	DWORD [gameover], 1
+		mov	DWORD [hardquit], 1
 		mov	DWORD [requireenter], 0
 		jmp	leave_process_input
 
