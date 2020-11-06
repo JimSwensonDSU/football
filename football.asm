@@ -712,7 +712,9 @@ process_input:
 	je	leave_process_input
 
 
+	;
 	; Check for skill level change
+	;
 	check_skill_level:
 		cmp	al, '0'
 		jl	check_debug
@@ -724,7 +726,9 @@ process_input:
 		jmp	leave_process_input
 
 
+	;
 	; Checking for debug toggle
+	;
 	check_debug:
 		cmp	al, KEY_DEBUG
 		jne	check_quit
@@ -745,7 +749,9 @@ process_input:
 		jmp	leave_process_input
 
 
-	; Is user required to hit enter?
+	;
+	; Checking for Enter
+	;
 	check_enter:
 		cmp	DWORD [requireenter], 1
 		jne	check_movement
