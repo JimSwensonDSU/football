@@ -1393,10 +1393,12 @@ drawsplash:
 	rep	movsb
 
 	; print the splash screen
+	call	hidecursor
 	call	homecursor
 	push	splashstr
 	call	printf
 	add	esp, 4
+	call	showcursor
 
 	; restore splashstr
 	mov	edi, DWORD [ebp - 4]
@@ -1508,8 +1510,6 @@ drawboard:
 		mov	BYTE [boardstr + eax], DEFENSE_CHAR
 		loop	draw_defense
 
-
-	call	homecursor
 
 	; Used for modulus arithmetic when 2 or more digits
 	mov	ebx, 10
@@ -1636,9 +1636,12 @@ drawboard:
 
 
 	print_the_board:
+	call	hidecursor
+	call	homecursor
 	push	boardstr
 	call	printf
 	add	esp, 96
+	call	showcursor
 
 
 
@@ -1763,6 +1766,52 @@ homecursor:
 
 	leave
 	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void hidecursor()
+;
+; Hide the cursor
+;
+segment .data
+
+	hidestr	db	0x1b, "[?25l", 0
+
+hidecursor:
+	enter	0, 0
+
+	push	hidestr
+	call	printf
+	add	esp, 4
+
+	leave
+	ret
+
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void showcursor()
+;
+; Hide the cursor
+;
+segment .data
+
+	showstr	db	0x1b, "[?25h", 0
+
+showcursor:
+	enter	0, 0
+
+	push	showstr
+	call	printf
+	add	esp, 4
+
+	leave
+	ret
+
 ;
 ;------------------------------------------------------------------------------
 
