@@ -1641,7 +1641,6 @@ drawboard:
 	push	boardstr
 	call	printf
 	add	esp, 96
-	call	showcursor
 
 
 
@@ -1678,6 +1677,7 @@ drawboard:
 
 
 	leave_drawboard:
+	call	showcursor
 
 	pop	edx
 	pop	ecx
