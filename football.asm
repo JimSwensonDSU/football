@@ -240,8 +240,9 @@ init_game:
 init_player_positions:
 	enter	0, 0
 
-	cmp	DWORD [direction], 1
-	jne	right_to_left
+	push	eax
+	push	ecx
+
 
 	left_to_right:
 	mov	DWORD [offense], 0
@@ -262,34 +263,39 @@ init_player_positions:
 	mov	DWORD [defense + 32], 8
 	mov	DWORD [defense + 36], 1
 
-	jmp	leave_init_player_positions
+
+	cmp	DWORD [direction], 1
+	je	leave_init_player_positions
 
 
+	; Flip all the X positions for right to left
 	right_to_left:
-	mov	DWORD [offense], 9
-	mov	DWORD [offense + 4], 1
 
-	mov	DWORD [defense],      6
-	mov	DWORD [defense + 4],  0
+	; Offense
+	mov	eax, DWORD [offense]	; offenseX
+	neg	eax
+	add	eax, FIELD_LENGTH
+	dec	eax
+	mov	DWORD [offense], eax
 
-	mov	DWORD [defense + 8],  6
-	mov	DWORD [defense + 12], 1
-
-	mov	DWORD [defense + 16], 6
-	mov	DWORD [defense + 20], 2
-
-	mov	DWORD [defense + 24], 4
-	mov	DWORD [defense + 28], 1
-
-	mov	DWORD [defense + 32], 1
-	mov	DWORD [defense + 36], 1
+	; Defense
+	mov	ecx, NUM_DEFENSE
+	flip_defense:
+		mov	eax, DWORD [defense + 8*ecx - 8]	; defenseX
+		neg	eax
+		add	eax, FIELD_LENGTH
+		dec	eax
+		mov	DWORD [defense + 8*ecx - 8], eax
+		loop	flip_defense
 
 
 	leave_init_player_positions:
 
+	pop	ecx
+	pop	eax
+
 	leave
 	ret
-
 ;
 ;------------------------------------------------------------------------------
 
