@@ -1466,9 +1466,19 @@ drawboard:
 	push	KEY_UP
 
 	; yards to go : 2 digits
+	;
+	; If yards to go extends into endzone, then truncate
+	;
+	mov	eax, DWORD [yardstogo]
+	mov	ecx, DWORD [lineofscrimmage]
+	add	ecx, DWORD [yardstogo]
+	cmp	ecx, 100
+	jle	push_yards_to_go
+	mov	eax, 100
+	sub	eax, DWORD [lineofscrimmage]
+
 	push_yards_to_go:
 	xor	edx, edx
-	mov	eax, DWORD [yardstogo]
 	div	ebx
 	push	edx
 	push	eax
