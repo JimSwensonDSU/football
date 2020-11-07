@@ -65,7 +65,7 @@
 ; See boardstr for field layout and player positioning
 %define MAX_FIELD_WIDTH		5	; max number of player positions across the width of the field
 %define MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
-%define	MAX_DEFENSE		10	; max number of defenders
+%define	MAX_DEFENSE		11	; max number of defenders
 
 %define	TOUCHDOWN_PTS	7	; points for a touchdown
 %define	FIELDGOAL_PTS	3	; points for a field goal
@@ -103,7 +103,6 @@ segment .data
 	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER, MAN!", 0
 
 	init_field_failure_fmt	db	"init_field() failed with return %d", 10, 0
-	herestr			db	"HERE", 10, 0
 
 segment .bss
 	; save terminal/stdin settings
