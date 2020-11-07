@@ -8,7 +8,9 @@
 ;
 ; This implementation is based on the remake.
 ;
-;   - Field length is 10.  Original was 9 positions long.
+;   - Field length and width is set via the boardstr definition.
+;     See the comments with boardstr for details.
+;     Original length was 9 positions long.
 ;
 ;   - Supports running backwards, but not behind the line
 ;     of scrimmage.  Original supported only forward.
@@ -28,9 +30,6 @@
 ;
 ; Ideas for improvement:
 ; - implement random fumbles on a tackle
-; - support arbitary field width/length
-; - support arbitrary number defenders (almost there apart from initial state)
-; - Use ascii chart for layout of defense or Random defense placement?
 ; - color
 ; - sound/beep
 ;
@@ -63,8 +62,11 @@
 %define	OFFENSE_CHAR	'O'	; character for offensive player
 %define	DEFENSE_CHAR	'X'	; character for defensive players
 
-%define FIELD_WIDTH	3	; number of player positions across width of the field
-%define	FIELD_LENGTH	10	; number of player positions along the length of the field
+; See boardstr for field layout and player positioning
+%define MAX_FIELD_WIDTH		5	; max number of player positions across the width of the field
+%define MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
+%define	MAX_DEFENSE		10	; max number of defenders
+
 %define	TOUCHDOWN_PTS	7	; points for a touchdown
 %define	FIELDGOAL_PTS	3	; points for a field goal
 %define	FIELDPOS	20	; starting field position
@@ -89,8 +91,6 @@
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
 %define DEFENSE_COUNTER	16	; Number of ticks between moving defense
 
-%define NUM_DEFENSE	5
-
 
 segment .data
 
@@ -101,6 +101,9 @@ segment .data
 	msg_punt		db	"PUNTED", 0
 	msg_gameover		db	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
 	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER, MAN!", 0
+
+	init_field_failure_fmt	db	"init_field() failed with return %d", 10, 0
+	herestr			db	"HERE", 10, 0
 
 segment .bss
 	; save terminal/stdin settings
@@ -132,7 +135,20 @@ segment .bss
 
 	; location of players
 	offense		resd	2		; X, Y
-	defense		resd	2*NUM_DEFENSE	; N sets of X,Y
+	defense		resd	2 * MAX_DEFENSE	; N sets of X,Y
+
+	; Offset to each player field position
+	playpos		resd	MAX_FIELD_LENGTH * MAX_FIELD_WIDTH
+	playpos_num	resd	1
+
+	field_length	resd	1	; determined playfield field length
+	field_width	resd	1	; determined playfield field width
+
+	; starting positions for offense and defense
+	offense_start	resd	2
+	offense_num	resd	1
+	defense_start	resd	2 * MAX_DEFENSE
+	defense_num	resd	1
 
 	; counters
 	defense_counter	resd	1
@@ -171,8 +187,20 @@ run_game:
 
 	push	eax
 
-	call	init_game
-	call	clearscreen
+	call	init_field
+	cmp	eax, 0
+	je	continue_init
+
+	push	eax
+	push	init_field_failure_fmt
+	call	printf
+	add	esp, 8
+	jmp	run_game_done
+
+
+	continue_init:
+		call	init_game
+		call	clearscreen
 
 	gameloop:
 		call	drawboard
@@ -296,24 +324,18 @@ init_player_positions:
 
 
 	left_to_right:
-	mov	DWORD [offense], 0
-	mov	DWORD [offense + 4], 1
+	mov	eax, DWORD [offense_start]	; offense_startX
+	mov	DWORD [offense], eax		; offenseX
+	mov	eax, DWORD [offense_start + 4]	; offense_startY
+	mov	DWORD [offense + 4], eax	; offenseY
 
-	mov	DWORD [defense],      3
-	mov	DWORD [defense + 4],  0
-
-	mov	DWORD [defense + 8],  3
-	mov	DWORD [defense + 12], 1
-
-	mov	DWORD [defense + 16], 3
-	mov	DWORD [defense + 20], 2
-
-	mov	DWORD [defense + 24], 5
-	mov	DWORD [defense + 28], 1
-
-	mov	DWORD [defense + 32], 8
-	mov	DWORD [defense + 36], 1
-
+	mov	ecx, DWORD [defense_num]
+	init_defense:
+		mov	eax, DWORD [defense_start + 8*ecx - 8]	; defense_startX
+		mov	DWORD [defense + 8*ecx - 8], eax	; defenseX
+		mov	eax, DWORD [defense_start + 8*ecx - 4]	; defense_startY
+		mov	DWORD [defense + 8*ecx - 4], eax	; defenseY
+		loop	init_defense
 
 	cmp	DWORD [direction], 1
 	je	leave_init_player_positions
@@ -325,16 +347,16 @@ init_player_positions:
 	; Offense
 	mov	eax, DWORD [offense]	; offenseX
 	neg	eax
-	add	eax, FIELD_LENGTH
+	add	eax, DWORD [field_length]
 	dec	eax
 	mov	DWORD [offense], eax
 
 	; Defense
-	mov	ecx, NUM_DEFENSE
+	mov	ecx, DWORD [defense_num]
 	flip_defense:
 		mov	eax, DWORD [defense + 8*ecx - 8]	; defenseX
 		neg	eax
-		add	eax, FIELD_LENGTH
+		add	eax, DWORD [field_length]
 		dec	eax
 		mov	DWORD [defense + 8*ecx - 8], eax
 		loop	flip_defense
@@ -1037,9 +1059,9 @@ move_offense:
 		; Update the offenseX position as well
 		mov	eax, DWORD [ebp + 8]	; eax = deltaX
 		add	eax, DWORD [offense]	; eax = offenseX + deltaX
-		mov	ebx, FIELD_LENGTH
-		add	eax, ebx		; eax = FIELDLENGTH + offenseX + deltaX
-		; Get eax % FIELDLENGTH
+		mov	ebx, DWORD [field_length]
+		add	eax, ebx		; eax = field_length + offenseX + deltaX
+		; Get eax % field_length
 		xor	edx, edx
 		div	ebx
 		mov	DWORD [offense], edx	; new offenseX position
@@ -1054,7 +1076,7 @@ move_offense:
 		jl	check_for_tackle
 
 		; Can't move below field
-		cmp	eax, FIELD_WIDTH
+		cmp	eax, DWORD [field_width]
 		jge	check_for_tackle
 
 		; Y move is ok
@@ -1071,7 +1093,7 @@ move_offense:
 
 		mov	eax, DWORD [offense]		; offenseX
 		mov	ebx, DWORD [offense + 4]	; offens Y
-		mov	ecx, NUM_DEFENSE
+		mov	ecx, DWORD [defense_num]
 
 		check_tackle:
 			cmp	eax, DWORD [defense + 8*ecx - 8]	; defense X
@@ -1153,7 +1175,7 @@ move_defense:
 
 
 	; Randomly pick one defender
-	push	NUM_DEFENSE
+	push	DWORD [defense_num]
 	call	random
 	add	esp, 4
 	mov	DWORD [ebp - 12], eax
@@ -1254,7 +1276,7 @@ move_defense:
 	; If not, then update defender's position, otherwise ignore the move.
 	not_a_tackle:
 		mov	ebx, 1	; move ok?
-		mov	ecx, NUM_DEFENSE
+		mov	ecx, DWORD [defense_num]
 
 		not_a_tackle_loop:
 			mov	eax, DWORD [defense + 8*ecx - 8]; A defender X pos
@@ -1458,18 +1480,40 @@ drawsplash:
 ;
 segment .data
 
+;
+; boardstr
+;
+; This fmt string contains the entire game display, with printf
+; format specifiers for various game stats and inputs, etc.
+;
+; The actual playing field is marked with the labels
+; playfield_begin and playfield_end.  Within the playfied,
+; each possible player position is marked with *, O, or D.
+;
+; O indicates the starting position for the offense.
+; D indicates the starting position for eacf defensive
+; player.
+;
+; The playfing field size may be changed within the bounds
+; of MIN/MAX_FIELD_WIDTH and MIN/MAX_FIELD_LENGTH.  It must be
+; rectangular; i.e. each row has the same number of columns
+; of player positions.
+;
+; The corresponding layout for splashstr in drawsplash should
+; match the layout of the playing field.
+;
 boardstr	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
 		db	"                                                    ", 10
 		db	"   --------------                 --------------    ", 10
 		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
-		db	"   ---------------------------------------------    ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
+playfield_begin	db	"   ---------------------------------------------    ", 10
+		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
-		db	" | |||   |   |   |   |   |   |   |   |   |   ||| |  ", 10
+		db	" | ||| O | * | * | D | * | D | * | * | D | * ||| |  ", 10
 		db	"/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
-		db	"   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-		db	"   ---------------------------------------------    ", 10
+		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
+playfield_end	db	"   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
@@ -1480,34 +1524,31 @@ boardstr	db	"                                                    ", 10
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
 		db	"     Hit %c to toggle debug display                  ", 10
+		db	10
 		db	0x1b, "[0J" ; clear to end of screen
 		db	0
 
-debugstr	db	"                                                    ", 10
+playposstr	db	" %d,%d", 0
+
+debugstr	db	10
+		db	"                                                    ", 10
 		db	"   State Variables       Hit 0 - 5 to change skill: ", 10
-		db	" -------------------     0 - sarcastaball           ", 10
-		db	"          tackle: %d      3 - challenging           ", 10
-		db	"     playrunning: %d      5 - hurt me plenty        ", 10
-		db	"    requireenter: %d                                ", 10
+		db	" -------------------                                ", 10
+		db	"          tackle: %d      0 - sarcastaball          ", 10
+		db	"     playrunning: %d      3 - challenging           ", 10
+		db	"    requireenter: %d      5 - hurt me plenty        ", 10
 		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
-		db	"      possession: %d     Players X,Y:               ", 10
-		db	"       direction: %d      O: %d,%d                    ", 10
-		db	"      skilllevel: %d      D: %d,%d %d,%d %d,%d %d,%d %d,%d    ", 10
+		db	"      possession: %d                                ", 10
+		db	"       direction: %d                                ", 10
+		db	"      skilllevel: %d                                ", 10
+		db	"    field_length: %d                                ", 10
+		db	"     field_width: %d                                ", 10
+		db	"     defense_num: %d                                ", 10
 		db	0
 
 drawboard:
-	enter	4*(1+NUM_DEFENSE), 0
-
-	; Local vars for saving the player offsets, so we can restore
-	; those characters in the boardstr after printing.
-	;
-	; [ebp - 4]  : offense
-	; [ebp - 8]  : defender 1
-	; [ebp - 12] : defender 2
-	; .
-	; .
-	; .
+	enter	0, 0
 
 	push	eax
 	push	ebx
@@ -1518,27 +1559,19 @@ drawboard:
 	;
 	; draw players into the boardstr
 	;
-	; Could combine offense and defense together here in one loop, but
-	; that would then require that the offense and defense in .bss remain
-	; in their current order.  So better to keep separate for clarity.
-	;
-	lea	ebx, [ebp - 4]		; ebx points to offense save slot
 	push	DWORD [offense + 4]	; offenseY
 	push	DWORD [offense]		; offenseX
-	call	calc_player_offset
+	call	get_player_offset
 	add	esp, 8
-	mov	[ebx], eax		; save offset to local var
-	mov	BYTE [boardstr + eax], OFFENSE_CHAR
+	mov	BYTE [eax], OFFENSE_CHAR
 
-	mov	ecx, NUM_DEFENSE
+	mov	ecx, DWORD [defense_num]
 	draw_defense:
-		sub	ebx, 4
 		push	DWORD [defense + 8*ecx - 4]	; defender Y
 		push	DWORD [defense + 8*ecx - 8]	; defender X
-		call	calc_player_offset
+		call	get_player_offset
 		add	esp, 8
-		mov	DWORD [ebx], eax		; save offset to local var
-		mov	BYTE [boardstr + eax], DEFENSE_CHAR
+		mov	BYTE [eax], DEFENSE_CHAR
 		loop	draw_defense
 
 
@@ -1674,15 +1707,8 @@ drawboard:
 	add	esp, 96
 
 
-
 	; restore the boardstr
-	mov	ebx, ebp
-	mov	ecx, 1+NUM_DEFENSE
-	restore_board:
-		sub	ebx, 4
-		mov	eax, DWORD [ebx]
-		mov	BYTE [boardstr + eax], ' '
-		loop	restore_board
+	call	clear_playpos
 
 
 	;
@@ -1692,26 +1718,39 @@ drawboard:
 	jne	leave_drawboard
 
 
-	; some state info
-
-	; defense
-	mov	ecx, NUM_DEFENSE
-	push_defense_pos:
-		push	DWORD [defense + 8*ecx-4]	; defenseX
-		push	DWORD [defense + 8*ecx-8]	; defenseX
-		loop	push_defense_pos
-
-	push	DWORD [skilllevel]
+	;
+	; Player positions
+	;
 
 	; offense
 	push	DWORD [offense + 4]	; offenseY
 	push	DWORD [offense]		; offenseX
+	push	playposstr
+	call	printf
+	add	esp, 12
 
+	; defense
+	mov	ecx, DWORD [defense_num]
+	push_defense_pos:
+		push	ecx
+		push	DWORD [defense + 8*ecx-4]	; defenseX
+		push	DWORD [defense + 8*ecx-8]	; defenseX
+		push	playposstr
+		call	printf
+		add	esp, 12
+		pop	ecx
+		loop	push_defense_pos
+
+	;
+	; state info
+	;
+	push	DWORD [defense_num]
+	push	DWORD [field_width]
+	push	DWORD [field_length]
+	push	DWORD [skilllevel]
 	push	DWORD [direction]
 	push	DWORD [possession]
-
 	push	DWORD [lineofscrimmage]
-
 	push	DWORD [fieldpos]
 	push	DWORD [requireenter]
 	push	DWORD [playrunning]
@@ -1719,7 +1758,8 @@ drawboard:
 
 	push	debugstr
 	call	printf
-	add	esp, 84
+	add	esp, 48
+
 
 
 	leave_drawboard:
@@ -1737,38 +1777,204 @@ drawboard:
 
 ;------------------------------------------------------------------------------
 ;
-; int calc_player_offset(int X, int Y)
+; int init_field()
 ;
-; Calculate byte offset in boardstr for a player at position X,Y
+; Scans through the playfield to detemine all the field length,
+; field width, location of all player positions, starting location
+; of offense, starting locations of all defense, and number of
+; defense.
+;
+; Return: 0 - success, 1 - fail
+;
+init_field:
+	enter	12, 0
+
+	; Local Vars:
+	; [ebp - 4]  : set to 1 when we have a player position on the current line
+	; [ebp - 8]  : column
+
+	push	ecx
+	push	esi
+	push	edi
+
+	mov	esi, playfield_begin
+	mov	DWORD [field_length], 0
+	mov	DWORD [field_width], 0
+	mov	DWORD [playpos_num], 0
+	mov	DWORD [offense_num], 0
+	mov	DWORD [defense_num], 0
+	mov	DWORD [ebp - 4], 0
+	mov	DWORD [ebp - 8], -1
+
+	init_field_next:
+		inc	esi
+		cmp	esi, playfield_end
+		jge	init_field_done
+
+		cmp	BYTE [esi], '*'		; player position
+		je	init_field_add_playpos
+
+		cmp	BYTE [esi], 'O'		; offense position
+		je	init_field_add_offense
+
+		cmp	BYTE [esi], 'D'		; defense position
+		je	init_field_add_defense
+
+		cmp	BYTE [esi], 10
+		je	init_field_newline
+
+		jmp	init_field_next
+
+
+		init_field_add_offense:
+			mov	eax, 1
+			cmp	DWORD [offense_num], 1	; only 1 offense allowed
+			je	leave_init_field
+
+			mov	eax, DWORD [ebp - 8]
+			inc	eax
+			mov	DWORD [offense_start], eax	; offenseX start
+
+			mov	eax, DWORD [field_width]
+			mov	DWORD [offense_start + 4], eax	; offenseY start
+
+			inc	DWORD [offense_num]
+
+			jmp	init_field_add_playpos
+
+
+		init_field_add_defense:
+			mov	eax, 2
+			cmp	DWORD [defense_num], MAX_DEFENSE	; limit MAX_DEFENSE defenders
+			je	leave_init_field
+
+			mov	ecx, DWORD [defense_num]
+
+			mov	eax, DWORD [ebp - 8]
+			inc	eax
+			mov	DWORD [defense_start + 8*ecx], eax	; defenseX start
+
+			mov	eax, DWORD [field_width]
+			mov	DWORD [defense_start + 8*ecx + 4], eax	; defenseX start
+
+			inc	DWORD [defense_num]
+
+			jmp	init_field_add_playpos
+
+
+		init_field_newline:
+			mov	DWORD [ebp - 8], -1
+			cmp	DWORD [ebp - 4], 0
+			je	init_field_next		; No player pos on this line
+
+			mov	eax, 3
+			cmp	DWORD [field_width], MAX_FIELD_WIDTH	; limit MAX_FIELD_WIDTH
+			je	leave_init_field
+
+			inc	DWORD [field_width]
+			mov	DWORD [ebp - 4], 0
+
+			jmp	init_field_next
+
+
+		init_field_add_playpos:
+			inc	DWORD [ebp - 8]
+			mov	DWORD [ebp - 4], 1
+
+			cmp	DWORD [field_width], 0
+			jg	add_the_playpos
+
+			mov	eax, 4
+			cmp	DWORD [field_length], MAX_FIELD_LENGTH	; limit MAX_FIELD_LENGTH
+			je	leave_init_field
+
+			inc	DWORD [field_length]
+
+			add_the_playpos:
+				mov	edi, DWORD [playpos_num]
+				shl	edi, 2
+				add	edi, playpos
+				mov	[edi], esi	; playpos[playpos_num] = esi
+				inc	DWORD [playpos_num]
+				jmp	init_field_next
+
+
+	init_field_done:
+		; Need to have 1 offense and at lease 1 defense
+		mov	eax, 5
+		cmp	DWORD [offense_num], 1
+		jne	leave_init_field
+
+		mov	eax, 6
+		cmp	DWORD [defense_num], 1
+		jl	leave_init_field
+
+
+		; blank out all the playpos on the playfield
+		call	clear_playpos
+
+		mov	eax, 0
+
+
+	leave_init_field:
+
+	pop	edi
+	pop	esi
+	pop	ecx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void clear_playpos()
+;
+; blank out all the playpos on the playfield
+;
+clear_playpos:
+	enter	0, 0
+	push	ecx
+
+	mov	ecx, DWORD [playpos_num]
+	clear_playpos_loop:
+		mov	edi, DWORD [playpos + 4*ecx - 4]
+		mov	BYTE [edi], ' '
+		loop	clear_playpos_loop
+
+	pop	ecx
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int get_player_offset(int X, int Y)
+;
+; Get the byte offset in boardstr for a player at position X,Y
 ;
 ; Return: the byte offset
 ;
-calc_player_offset:
-	enter	4, 0
+get_player_offset:
+	enter	0, 0
 
 	; Arguments:
 	; [ebp + 12] : Y
 	; [ebp + 8]  : X
-	;
-	; Local vars:
-	; [ebp - 4] : temp variable for calculation
 
 	push	ebx
-	push	edx
 
-	; Offset to offense position is 335 + Y*106 + X*4
-	mov	eax, DWORD [ebp + 12]
-	mov	ebx, 106
+	; playpos + 4*((Y*field_length) + X)
+	mov	eax, DWORD [field_length]
+	mov	ebx, DWORD [ebp + 12]
 	mul	ebx
-	mov	DWORD [ebp - 4], eax	; Y*106
+	add	eax, DWORD [ebp + 8]
+	shl	eax, 2
+	add	eax, playpos
+	mov	eax, DWORD [eax]
 
-	mov	eax, DWORD [ebp + 8]
-	mov	ebx, 4
-	mul	ebx			; eax = X*4
-	add	eax, DWORD [ebp - 4]	; eax = Y*106 + X*4
-	add	eax, 335
-
-	pop	edx
 	pop	ebx
 
 	leave
