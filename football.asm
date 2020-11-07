@@ -1517,7 +1517,8 @@ segment .data
 ; The playfing field size may be changed within the bounds
 ; of MAX_FIELD_WIDTH and MAX_FIELD_LENGTH.  It must be
 ; rectangular; i.e. each row has the same number of columns
-; of player positions.
+; of player positions.  The init_field() function attempts
+; to enforce this.
 ;
 ; The corresponding layout for splashstr in drawsplash should
 ; match the layout of the playing field.
@@ -1809,7 +1810,11 @@ drawboard:
 ;         3 - Exceeded MAX_FIELD_WIDTH
 ;         4 - Exceeded MAX_FIELD_LENGTH
 ;         5 - No offensive players on playfield
-;         5 - No defensive players on playfield
+;         6 - No defensive players on playfield
+;         7 - field_length = 0
+;         8 - field_width = 0
+;         9 - playpos_num != field_length * field_width
+;        10 - too many player positions on a field row
 ;
 init_field:
 	enter	12, 0
@@ -1819,6 +1824,7 @@ init_field:
 	; [ebp - 8]  : column
 
 	push	ecx
+	push	edx
 	push	esi
 	push	edi
 
@@ -1828,8 +1834,8 @@ init_field:
 	mov	DWORD [playpos_num], 0
 	mov	DWORD [offense_num], 0
 	mov	DWORD [defense_num], 0
-	mov	DWORD [ebp - 4], 0
-	mov	DWORD [ebp - 8], -1
+	mov	DWORD [ebp - 4], 0	; no player pos seen yet
+	mov	DWORD [ebp - 8], -1	; column
 
 	init_field_next:
 		inc	esi
@@ -1856,7 +1862,7 @@ init_field:
 			cmp	DWORD [offense_num], 1	; only 1 offense allowed
 			je	leave_init_field
 
-			mov	eax, DWORD [ebp - 8]
+			mov	eax, DWORD [ebp - 8]		; column
 			inc	eax
 			mov	DWORD [offense_start], eax	; offenseX start
 
@@ -1875,7 +1881,7 @@ init_field:
 
 			mov	ecx, DWORD [defense_num]
 
-			mov	eax, DWORD [ebp - 8]
+			mov	eax, DWORD [ebp - 8]			; column
 			inc	eax
 			mov	DWORD [defense_start + 8*ecx], eax	; defenseX start
 
@@ -1888,8 +1894,8 @@ init_field:
 
 
 		init_field_newline:
-			mov	DWORD [ebp - 8], -1
-			cmp	DWORD [ebp - 4], 0
+			mov	DWORD [ebp - 8], -1	; reset column
+			cmp	DWORD [ebp - 4], 0	; Did we see a player pos on this line?
 			je	init_field_next		; No player pos on this line
 
 			mov	eax, 3
@@ -1897,18 +1903,19 @@ init_field:
 			je	leave_init_field
 
 			inc	DWORD [field_width]
-			mov	DWORD [ebp - 4], 0
+			mov	DWORD [ebp - 4], 0	; reset player pos seen flag
 
 			jmp	init_field_next
 
 
 		init_field_add_playpos:
-			inc	DWORD [ebp - 8]
-			mov	DWORD [ebp - 4], 1
+			inc	DWORD [ebp - 8]		; increment column
+			mov	DWORD [ebp - 4], 1	; we have now seen a player pos on this line
 
 			cmp	DWORD [field_width], 0
 			jg	add_the_playpos
 
+			; On first field row, so still determining field_length
 			mov	eax, 4
 			cmp	DWORD [field_length], MAX_FIELD_LENGTH	; limit MAX_FIELD_LENGTH
 			je	leave_init_field
@@ -1916,6 +1923,12 @@ init_field:
 			inc	DWORD [field_length]
 
 			add_the_playpos:
+				; Check if too many player pos on this field row
+				mov	eax, DWORD [ebp - 8]		; column
+				cmp	eax, DWORD [field_length]
+				mov	eax, 10
+				jge	leave_init_field
+
 				mov	edi, DWORD [playpos_num]
 				shl	edi, 2
 				add	edi, playpos
@@ -1925,15 +1938,35 @@ init_field:
 
 
 	init_field_done:
-		; Need to have 1 offense and at lease 1 defense
+		; Need to have 1 offense
 		mov	eax, 5
 		cmp	DWORD [offense_num], 1
 		jne	leave_init_field
 
+		; Need to have at least 1 defense
 		mov	eax, 6
 		cmp	DWORD [defense_num], 1
 		jl	leave_init_field
 
+		; Check that field_length > 0
+		mov	eax, 7
+		cmp	DWORD [field_length], 0
+		je	leave_init_field
+
+		; Check that field_width > 0
+		mov	eax, 8
+		cmp	DWORD [field_width], 0
+		je	leave_init_field
+
+		; Check that playpos_num = field_length * field_width
+		mov	eax, DWORD [field_length]
+		mov	ecx, DWORD [field_width]
+		mul	ecx
+		sub	eax, DWORD [playpos_num]
+		cmp	eax, 0
+		mov	eax, 9
+		jne	leave_init_field
+		
 
 		; blank out all the playpos on the playfield
 		call	clear_playpos
@@ -1945,6 +1978,7 @@ init_field:
 
 	pop	edi
 	pop	esi
+	pop	edx
 	pop	ecx
 
 	leave
