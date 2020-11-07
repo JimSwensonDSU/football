@@ -158,7 +158,6 @@ segment .bss
 
 segment .text
 	global  asm_main
-	extern	printf
 	extern	usleep
 	extern  fcntl, tcsetattr, tcgetattr
 
@@ -2301,6 +2300,9 @@ terminal_restore_mode:
 ; Return: none
 
 
+; Size to reserve for a local print buffer
+%define BUFFER_SIZE	1000
+
 ; Defines for arguments
 %define ARG_FORMAT	[ebp + 8]
 %define ARG_1		[ebp + 12]
@@ -2311,6 +2313,8 @@ terminal_restore_mode:
 %define LOCAL_I		[ebp - 8 ]
 %define LOCAL_J		[ebp - 12]
 %define	LOCAL_BYTES	[ebp - 16]
+%define	LOCAL_BUFFN	[ebp - 20]
+%define	LOCAL_BUFF	[ebp - 20 - BUFFER_SIZE]
 
 segment .data
 
@@ -2383,11 +2387,29 @@ powers db 0x00,0x00,0x00,0x00,0x40,0x22,0x8a,0x09,0x7a,0xc4,0x86,0x5a,0xa8,0x4c,
 ;
 ; Useful site: https://www.rapidtables.com/convert/number/hex-to-decimal.html
 
-MYprintf:
+printf:
+	push	ebp
+	mov	ebp, esp
 
-	enter	16, 0
-	pushf
-	pusha
+	; Move esp to LOCAL_BUFFN
+	lea	esp, LOCAL_BUFFN
+
+	; Space on the stack for LOCAL_BUFF is based on BUFFER_SIZE.
+
+	; Use LOCAL_BUFFN to temporarily save value of eax
+	mov	DWORD LOCAL_BUFFN, eax
+
+	; Round BUFFER_SIZE up to a multiple of 4 (DWORD boundary)
+	mov	eax, BUFFER_SIZE
+	add	eax, 3
+	shr	eax, 2
+	shl	eax, 2
+
+	; Reserve space for LOCAL_BUFF on the stack
+	sub	esp, eax
+
+	; Restore eax
+	mov	eax, DWORD LOCAL_BUFFN
 
 	; ebp + 8 + 4n : nth argument
 	; .
@@ -2405,13 +2427,22 @@ MYprintf:
 	; ebp - 8   LOCAL_I     :         int i - loop counter
 	; ebp - 12  LOCAL_J     :         int j - loop counter
 	; ebp - 16  LOCAL_BYTES :     int bytes - Number of bytes for the int.
+	; ebp - 20  LOCAL_BUFFN :     int buffn - Numer of bytes in the print buffer.
+	; ebp - ?   LOCAL_BUFF  :   char buff[] - Print buffer.  BUFFER_SIZE bytes
+	;                                         below LOCAL_BUFFN.
 
 	; esi : will step through each character of the format string
 	; edi : will step through each subsequent argument on the stack
 
+
+	pushf
+	pusha
+
 	mov	esi, ARG_FORMAT		; esi points to format string
 	dec	esi
 	lea	edi, ARG_1		; edi will point to each subsequent argument
+
+	mov	DWORD LOCAL_BUFFN, 0
 
 
 	printf_toploop:
@@ -2458,11 +2489,23 @@ MYprintf:
 
 	; print a character
 	printf_char:
+		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
+		jl	printf_char_add2buffer
+
+		; buffer already full.  Print it and clear it.
 		mov	eax, SYS_write	; syscall
 		mov	ebx, STDOUT	; fd
-		mov	ecx, edi	; edi points to the char
-		mov	edx, 1		; length 1
+		lea	ecx, LOCAL_BUFF
+		mov	edx, DWORD LOCAL_BUFFN
 		int	0x80
+		mov	DWORD LOCAL_BUFFN, 0
+
+		printf_char_add2buffer:
+			lea	eax, LOCAL_BUFF
+			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
+			mov	bl, BYTE [edi]		; edi points to the char
+			mov	BYTE [eax], bl		; copy the character to the buffer
+			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
 
 		add	edi, 4		; Move edi to next argument
 		jmp	printf_toploop
@@ -2470,35 +2513,62 @@ MYprintf:
 
 	; print a string
 	printf_string:
-		; Calculate length of string
+		; Copy the string over to LOCAL_BUFF
+
 		push	edi		; Save edi, since needed for scasb
-
 		mov	edi, [edi]	; Point edi to the string itself.
-		mov	ecx, 0FFFFFFFFh	; String length approach from text book, pages 112-113.
-		xor	al, al		;
-		cld			;
-		repnz	scasb		;
-		mov	edx, 0FFFFFFFEh	;
-		sub	edx, ecx	; edx now holds the length of string
 
+		printf_string_loop:
+			cmp	BYTE [edi], 0
+			je	printf_string_loop_end
+
+			cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
+			jl	printf_string_add2buffer
+
+			; buffer already full.  Print it and clear it.
+			mov	eax, SYS_write	; syscall
+			mov	ebx, STDOUT	; fd
+			lea	ecx, LOCAL_BUFF
+			mov	edx, DWORD LOCAL_BUFFN
+			int	0x80
+			mov	DWORD LOCAL_BUFFN, 0
+
+			printf_string_add2buffer:
+				lea	eax, LOCAL_BUFF
+				add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
+				mov	bl, BYTE [edi]		; edi points to the char
+				mov	BYTE [eax], bl		; copy the character to the buffer
+				inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+
+			inc	edi
+			jmp	printf_string_loop
+
+			
+		printf_string_loop_end:
 		pop	edi		; restore edi
-
-		mov	eax, SYS_write
-		mov	ebx, STDOUT
-		mov	ecx, [edi]	; point to string to print
-		int	0x80
-
 		add	edi, 4		; Move edi to next argument
 		jmp	printf_toploop
 
 
 	; print character at esi
 	printf_char_literal:
+		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
+		jl	printf_char_literal_add2buffer
+
+		; buffer already full.  Print it and clear it.
 		mov	eax, SYS_write	; syscall
 		mov	ebx, STDOUT	; fd
-		mov	ecx, esi	; esi points to the char
-		mov	edx, 1		; length 1
+		lea	ecx, LOCAL_BUFF
+		mov	edx, DWORD LOCAL_BUFFN
 		int	0x80
+		mov	DWORD LOCAL_BUFFN, 0
+
+		printf_char_literal_add2buffer:
+			lea	eax, LOCAL_BUFF
+			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
+			mov	bl, BYTE [esi]		; esi points to the char
+			mov	BYTE [eax], bl		; copy the character to the buffer
+			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
 
 		jmp	printf_toploop
 
@@ -2555,11 +2625,24 @@ MYprintf:
 
 		; For negative, print out a minus sign and convert to a positive for printing
 		mov	BYTE LOCAL_OUTC, '-'	;  outchar = '-'
+
+		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
+		jl	printf_int_add2buffer1
+
+		; buffer already full.  Print it and clear it.
 		mov	eax, SYS_write	; syscall
 		mov	ebx, STDOUT	; fd
-		lea	ecx, LOCAL_OUTC	; outchar
-		mov	edx, 1		; length = 1
+		lea	ecx, LOCAL_BUFF
+		mov	edx, DWORD LOCAL_BUFFN
 		int	0x80
+		mov	DWORD LOCAL_BUFFN, 0
+
+		printf_int_add2buffer1:
+			lea	eax, LOCAL_BUFF
+			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
+			mov	bl, BYTE LOCAL_OUTC	; LOCAL_OUTC has the char
+			mov	BYTE [eax], bl		; copy the character to the buffer
+			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
 
 		; Negate the argument on the stack.
 		mov	eax, edi
@@ -2696,11 +2779,23 @@ MYprintf:
 			printf_int_output:
 			push	ecx		; save ecx (pointer into the powers of 10)
 
+			cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
+			jl	printf_int_add2buffer2
+
+			; buffer already full.  Print it and clear it.
 			mov	eax, SYS_write	; syscall
 			mov	ebx, STDOUT	; fd
-			lea	ecx, LOCAL_OUTC	; outchar
-			mov	edx, 1		; length = 1
+			lea	ecx, LOCAL_BUFF
+			mov	edx, DWORD LOCAL_BUFFN
 			int	0x80
+			mov	DWORD LOCAL_BUFFN, 0
+
+			printf_int_add2buffer2:
+				lea	eax, LOCAL_BUFF
+				add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
+				mov	bl, BYTE LOCAL_OUTC	; LOCAL_OUTC has the char
+				mov	BYTE [eax], bl		; copy the character to the buffer
+				inc	DWORD LOCAL_BUFFN	; increment buffer byte count
 
 			pop	ecx		; restore ecx
 
@@ -2721,19 +2816,46 @@ MYprintf:
 		cmp	BYTE LOCAL_PRTG, 0	; printing == 0
 		jne	printf_toploop
 
+		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
+		jl	printf_int_add2buffer3
+
+		; buffer already full.  Print it and clear it.
 		mov	eax, SYS_write	; syscall
 		mov	ebx, STDOUT	; fd
-		lea	ecx, LOCAL_OUTC	; outchar
-		mov	edx, 1		; length = 1
+		lea	ecx, LOCAL_BUFF
+		mov	edx, DWORD LOCAL_BUFFN
 		int	0x80
+		mov	DWORD LOCAL_BUFFN, 0
+
+		printf_int_add2buffer3:
+			lea	eax, LOCAL_BUFF
+			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
+			mov	bl, BYTE LOCAL_OUTC	; LOCAL_OUTC has the char
+			mov	BYTE [eax], bl		; copy the character to the buffer
+			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
 
 		jmp	printf_toploop
 
 
 	printf_endloop:
+
+	; Check for anything left in the print buffer
+	cmp	DWORD LOCAL_BUFFN, 0
+	je	printf_done
+
+	; Print the buffer
+	mov	eax, SYS_write	; syscall
+	mov	ebx, STDOUT	; fd
+	lea	ecx, LOCAL_BUFF
+	mov	edx, DWORD LOCAL_BUFFN
+	int	0x80
+
+	printf_done:
 	popa
 	popf
-	leave
+
+	mov	esp, ebp
+	pop	ebp
 	ret
 ;
 ;------------------------------------------------------------------------------
