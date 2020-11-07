@@ -4,13 +4,21 @@
 ; Jim Swenson
 ; Jim.Swenson@trojans.dsu.edu
 ;
-; An implementation of the Mattel Electronic Football game.
+; An implementation of the handheld Mattel Electronic Football game.
+;
+; https://www.handheldmuseum.com/Mattel/FB.htm
+;
 ;
 ; This implementation is based on the remake.
 ;
-;   - Field length and width is set via the boardstr definition.
+;   - Field length and width are set via the boardstr definition.
 ;     See the comments with boardstr for details.
-;     Original length was 9 positions long.
+;     Note that MAX_FIELD_WIDTH, MAX_FIELD_LENGTH, MAX_DEFENSE
+;     set some hard upper limits.  These may be adjusted to
+;     support larger values.
+;
+;     Original game: length 9, width 3.
+;     Remake game: length 10, width 3.
 ;
 ;   - Supports running backwards, but not behind the line
 ;     of scrimmage.  Original supported only forward.
@@ -27,8 +35,14 @@
 ;   - As in the original, initiating any movement will start
 ;     the play.
 ;
+;   - A debug screen is available to show various game variables.
 ;
-; Ideas for improvement:
+; This code also contains a local implementation of printf.
+; See the comments in printf for details and which format
+; strings are supported.
+;
+;
+; Ideas for game improvements:
 ; - implement random fumbles on a tackle
 ; - color
 ; - sound/beep
@@ -1782,7 +1796,14 @@ drawboard:
 ; of offense, starting locations of all defense, and number of
 ; defense.
 ;
-; Return: 0 - success, 1 - fail
+; Return: 0 - success, non 0 - failure
+;
+;         1 - More than 1 offensive player on playfield
+;         2 - Exceeded MAX_DEFENSE defensive players on playfield
+;         3 - Exceeded MAX_FIELD_WIDTH
+;         4 - Exceeded MAX_FIELD_LENGTH
+;         5 - No offensive players on playfield
+;         5 - No defensive players on playfield
 ;
 init_field:
 	enter	12, 0
@@ -2290,12 +2311,17 @@ terminal_restore_mode:
 ; %D#\d+# - signed integer of the specified number of bytes
 ; %U#\d+# - unsigned integer of the specified number of bytes
 ;
+; A local buffer of size BUFFER_SIZE bytes is used to hold the resulting
+; print string.  The buffer is outputted whenever it fills.
+;
 ; Supports 1 - MAX_BYTES byte ints.  To extend to more bytes:
 ;
 ; - Update the MAX_BYTES define to the new number.
 ; - Add entries to the digits table for the additional numbers of bytes.
 ; - Update the powers table to include the powers of 10 up to the maximum
 ;   number of digits.
+; - See the end of this code for a C program that may be used to
+;   generate the new tables.
 ;
 ; Return: none
 
@@ -2318,6 +2344,8 @@ terminal_restore_mode:
 
 segment .data
 
+
+; --- CUT HERE powers.c output ---
 %define MAX_BYTES 16
 %define MIN_BYTES 1
 
@@ -2386,6 +2414,7 @@ powers db 0x00,0x00,0x00,0x00,0x40,0x22,0x8a,0x09,0x7a,0xc4,0x86,0x5a,0xa8,0x4c,
 ; 39 digits long.
 ;
 ; Useful site: https://www.rapidtables.com/convert/number/hex-to-decimal.html
+; --- CUT HERE powers.c output ---
 
 printf:
 	push	ebp
@@ -2410,6 +2439,7 @@ printf:
 
 	; Restore eax
 	mov	eax, DWORD LOCAL_BUFFN
+
 
 	; ebp + 8 + 4n : nth argument
 	; .
@@ -2489,23 +2519,9 @@ printf:
 
 	; print a character
 	printf_char:
-		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
-		jl	printf_char_add2buffer
-
-		; buffer already full.  Print it and clear it.
-		mov	eax, SYS_write	; syscall
-		mov	ebx, STDOUT	; fd
-		lea	ecx, LOCAL_BUFF
-		mov	edx, DWORD LOCAL_BUFFN
-		int	0x80
-		mov	DWORD LOCAL_BUFFN, 0
-
-		printf_char_add2buffer:
-			lea	eax, LOCAL_BUFF
-			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
-			mov	bl, BYTE [edi]		; edi points to the char
-			mov	BYTE [eax], bl		; copy the character to the buffer
-			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+		push	DWORD [edi]	; edi points to the char
+		call	printf_buffer_mgmt
+		add	esp, 4
 
 		add	edi, 4		; Move edi to next argument
 		jmp	printf_toploop
@@ -2522,23 +2538,9 @@ printf:
 			cmp	BYTE [edi], 0
 			je	printf_string_loop_end
 
-			cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
-			jl	printf_string_add2buffer
-
-			; buffer already full.  Print it and clear it.
-			mov	eax, SYS_write	; syscall
-			mov	ebx, STDOUT	; fd
-			lea	ecx, LOCAL_BUFF
-			mov	edx, DWORD LOCAL_BUFFN
-			int	0x80
-			mov	DWORD LOCAL_BUFFN, 0
-
-			printf_string_add2buffer:
-				lea	eax, LOCAL_BUFF
-				add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
-				mov	bl, BYTE [edi]		; edi points to the char
-				mov	BYTE [eax], bl		; copy the character to the buffer
-				inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+			push	DWORD [edi]	; edi points to the char
+			call	printf_buffer_mgmt
+			add	esp, 4
 
 			inc	edi
 			jmp	printf_string_loop
@@ -2552,23 +2554,9 @@ printf:
 
 	; print character at esi
 	printf_char_literal:
-		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
-		jl	printf_char_literal_add2buffer
-
-		; buffer already full.  Print it and clear it.
-		mov	eax, SYS_write	; syscall
-		mov	ebx, STDOUT	; fd
-		lea	ecx, LOCAL_BUFF
-		mov	edx, DWORD LOCAL_BUFFN
-		int	0x80
-		mov	DWORD LOCAL_BUFFN, 0
-
-		printf_char_literal_add2buffer:
-			lea	eax, LOCAL_BUFF
-			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
-			mov	bl, BYTE [esi]		; esi points to the char
-			mov	BYTE [eax], bl		; copy the character to the buffer
-			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+		push	DWORD [esi]	; esi points to the char
+		call	printf_buffer_mgmt
+		add	esp, 4
 
 		jmp	printf_toploop
 
@@ -2626,23 +2614,9 @@ printf:
 		; For negative, print out a minus sign and convert to a positive for printing
 		mov	BYTE LOCAL_OUTC, '-'	;  outchar = '-'
 
-		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
-		jl	printf_int_add2buffer1
-
-		; buffer already full.  Print it and clear it.
-		mov	eax, SYS_write	; syscall
-		mov	ebx, STDOUT	; fd
-		lea	ecx, LOCAL_BUFF
-		mov	edx, DWORD LOCAL_BUFFN
-		int	0x80
-		mov	DWORD LOCAL_BUFFN, 0
-
-		printf_int_add2buffer1:
-			lea	eax, LOCAL_BUFF
-			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
-			mov	bl, BYTE LOCAL_OUTC	; LOCAL_OUTC has the char
-			mov	BYTE [eax], bl		; copy the character to the buffer
-			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+		push	DWORD LOCAL_OUTC	; LOCAL_OUTC has the char
+		call	printf_buffer_mgmt
+		add	esp, 4
 
 		; Negate the argument on the stack.
 		mov	eax, edi
@@ -2779,23 +2753,9 @@ printf:
 			printf_int_output:
 			push	ecx		; save ecx (pointer into the powers of 10)
 
-			cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
-			jl	printf_int_add2buffer2
-
-			; buffer already full.  Print it and clear it.
-			mov	eax, SYS_write	; syscall
-			mov	ebx, STDOUT	; fd
-			lea	ecx, LOCAL_BUFF
-			mov	edx, DWORD LOCAL_BUFFN
-			int	0x80
-			mov	DWORD LOCAL_BUFFN, 0
-
-			printf_int_add2buffer2:
-				lea	eax, LOCAL_BUFF
-				add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
-				mov	bl, BYTE LOCAL_OUTC	; LOCAL_OUTC has the char
-				mov	BYTE [eax], bl		; copy the character to the buffer
-				inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+			push	DWORD LOCAL_OUTC	; LOCAL_OUTC has the char
+			call	printf_buffer_mgmt
+			add	esp, 4
 
 			pop	ecx		; restore ecx
 
@@ -2816,23 +2776,9 @@ printf:
 		cmp	BYTE LOCAL_PRTG, 0	; printing == 0
 		jne	printf_toploop
 
-		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
-		jl	printf_int_add2buffer3
-
-		; buffer already full.  Print it and clear it.
-		mov	eax, SYS_write	; syscall
-		mov	ebx, STDOUT	; fd
-		lea	ecx, LOCAL_BUFF
-		mov	edx, DWORD LOCAL_BUFFN
-		int	0x80
-		mov	DWORD LOCAL_BUFFN, 0
-
-		printf_int_add2buffer3:
-			lea	eax, LOCAL_BUFF
-			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
-			mov	bl, BYTE LOCAL_OUTC	; LOCAL_OUTC has the char
-			mov	BYTE [eax], bl		; copy the character to the buffer
-			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+		push	DWORD LOCAL_OUTC	; LOCAL_OUTC has the char
+		call	printf_buffer_mgmt
+		add	esp, 4
 
 		jmp	printf_toploop
 
@@ -2857,5 +2803,269 @@ printf:
 	mov	esp, ebp
 	pop	ebp
 	ret
+
+	;
+	; void printf_buffer_mgmt(char c)
+	;
+	; Mini routine for adding a char to the print buffer
+	; and printing the buffer if full.  Created to avoid
+	; code duplication.
+	;
+	; esp + 4 will point to the char.
+	;
+	; Caller needs to save, eax, ebx, ecx, edx as needed.
+	;
+	printf_buffer_mgmt:
+		cmp	DWORD LOCAL_BUFFN, BUFFER_SIZE
+		jl	printf_buffer_mgmt_add
+
+		; buffer already full.  Print it and clear it.
+		mov	eax, SYS_write	; syscall
+		mov	ebx, STDOUT	; fd
+		lea	ecx, LOCAL_BUFF
+		mov	edx, DWORD LOCAL_BUFFN
+		int	0x80
+		mov	DWORD LOCAL_BUFFN, 0
+
+		printf_buffer_mgmt_add:
+			lea	eax, LOCAL_BUFF
+			add	eax, DWORD LOCAL_BUFFN	; eax points to new char location in buffer
+			mov	bl, BYTE [esp + 4]	; esp points to the char
+			mov	BYTE [eax], bl		; copy the character to the buffer
+			inc	DWORD LOCAL_BUFFN	; increment buffer byte count
+
+		ret
 ;
 ;------------------------------------------------------------------------------
+
+; powers.c
+; C program for generating new tables for the printf function
+; Paste output above between the "CUT HERE powers.c output" markers.
+
+%if 0
+// powers.c
+//
+// Building: gcc -o powers powers.c
+//
+// Usage: ./powers [bytes] > out
+//
+//        where bytes is the # of bytes to support
+//
+// Output: Generates new tables to include in the printf assembly code.
+//
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_BYTES (10000)
+#define MAX_DIGITS (3 * MAX_BYTES)
+
+void hex2dec(char *hex, int dec[], int *digits);
+void mul(int number[], int *digits, int base, int val);
+void add(int number[], int *digits, int base, int val);
+void outputdec(int dec[], int digits);
+char* outputhex(int hex[], int digits, int bytes);
+
+
+char out[MAX_BYTES*5+100];
+
+int main(int argc, char *argv[])
+{
+   int dec[MAX_DIGITS+1];
+   int decdigits;
+
+   int hex[MAX_BYTES*2+1];
+   int hexdigits;
+
+   int inx;
+   int powerdigits;
+
+   int bytes = 4;
+
+   char hex_string[MAX_BYTES*2 + 1];
+
+   if (argc == 2)
+   {
+      bytes = atoi(argv[1]);
+   }
+
+   if (bytes > MAX_BYTES)
+   {
+      printf("Max bytes = %d\n", MAX_BYTES);
+      exit(1);
+   }
+
+
+   printf("%%define MAX_BYTES %d\n", bytes);
+   printf("%%define MIN_BYTES 1\n");
+   printf("\n");
+
+
+   // Generate digits table
+   printf("; Max number of digits in an N byte integer.  0<= N <=%d\n", bytes);
+   printf("digits db 0x00, 0x00, 0x00, 0x00");
+   memset(hex_string,'\0',sizeof(hex_string));
+   for (inx=0; inx<bytes; inx++)
+   {
+      strcat(hex_string, "ff");
+      memset(dec, '\0', sizeof(dec));
+      hex2dec(hex_string, dec, &decdigits);
+
+      printf("\n       db ");
+      printf("0x%02x, 0x%02x, 0x%02x, 0x%02x ; %d byte%s = %u digits", decdigits&0xff, (decdigits>>8)&0xff, (decdigits>>16)&0xff, (decdigits>>24)&0xff, inx+1, (inx>0)?"s":"", decdigits);
+   }
+   printf("\n");
+   printf("\n");
+
+
+   // Generate powers table
+   // Outputting from highest number of digits to lowest (1)
+
+   printf("; Table of powers of 10 for %d byte integers.\n", bytes);
+
+   powerdigits = decdigits;
+
+   while (powerdigits > 0)
+   {
+      memset(hex, '\0', sizeof(hex));
+      hex[0] = 1;
+      hexdigits = 1;
+
+      for (inx=0; inx<powerdigits-1; inx++)
+      {
+         mul(hex, &hexdigits, 16, 10);
+      }
+
+      if (powerdigits == decdigits)
+      {
+         printf("powers db ");
+      }
+      else
+      {
+         printf("       db ");
+      }
+      printf(outputhex(hex, hexdigits, bytes));
+      printf(" ; 10^%d\n", powerdigits-1);
+
+      powerdigits--;
+   }
+
+
+   printf("\n; The largest %d byte unsigned integer 0x%s\n", bytes, hex_string);
+   printf("; would be ");
+   for (inx=decdigits-1; inx>=0; inx--) printf("%d", dec[inx]);
+   printf(" in decimal.\n");
+   printf("; %d digits long.\n", decdigits);
+   printf(";\n");
+   printf("; Useful site: https://www.rapidtables.com/convert/number/hex-to-decimal.html\n");
+}
+
+void hex2dec(char *hex, int dec[], int *digits)
+{
+   char *p;
+   int val;
+
+   *digits = 1;
+   dec[0] = 0;
+
+   for (p=hex; *p; p++)
+   {
+      mul(dec, digits, 10, 16);
+      if ( (*p>='0') && (*p<='9') )
+      {
+         val = *p - '0';
+      }
+      if ( (*p>='a') && (*p<='f') )
+      {
+         val = *p - 'a' + 10;
+      }
+      if ( (*p>='A') && (*p<='F') )
+      {
+         val = *p - 'A' + 10;
+      }
+      add(dec, digits, 10, val);
+   }
+}
+
+void mul(int number[], int *digits, int base, int val)
+{
+   int carry = 0;
+   int inx = 0;
+
+   carry = 0;
+   do
+   {
+      number[inx] = val*number[inx] + carry;
+      carry = number[inx]/base;
+      number[inx] = number[inx] % base;
+      inx++;
+   } while ( (inx<*digits) || (carry!=0) );
+
+   *digits = inx;
+   if (*digits > MAX_DIGITS)
+   {
+      printf("\n\nExceeded MAX_DIGITS %d\n", MAX_DIGITS);
+      exit(1);
+   }
+}
+
+void add(int number[], int *digits, int base, int val)
+{
+   int carry = 0;
+   int inx = 0;
+
+   carry = 0;
+   do
+   {
+      number[inx] += (val + carry);
+      val = 0;
+      carry = number[inx]/base;
+      number[inx] = number[inx] % base;
+      inx++;
+   } while ( (inx<*digits) || (carry!=0) );
+
+   *digits = inx;
+   if (*digits > MAX_DIGITS)
+   {
+      printf("\n\nExceeded MAX_DIGITS %d\n", MAX_DIGITS);
+      exit(1);
+   }
+}
+
+void outputdec(int dec[], int digits)
+{
+   int inx;
+
+   printf("Num: ");
+   for (inx=digits-1; inx>=0; inx--)
+   {
+      printf("%d", dec[inx]);
+   }
+   printf(", Digits: %d\n", digits);
+}
+
+char* outputhex(int hex[], int digits, int bytes)
+{
+   int inx;
+
+   char chars[] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+
+   memset(out, '\0', sizeof(out));
+
+   for (inx=0; inx<digits; inx+=2)
+   {
+      sprintf(out+strlen(out), "0x%c%c", chars[hex[inx+1]], chars[hex[inx]]);
+      bytes--;
+      if (bytes > 0) sprintf(out+strlen(out), ",");
+   }
+
+   while (bytes > 0)
+   {
+      sprintf(out+strlen(out), "0x00");
+      bytes--;
+      if (bytes > 0) sprintf(out+strlen(out), ",");
+   }
+
+   return(out);
+}
+%endif
