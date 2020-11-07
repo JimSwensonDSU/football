@@ -6,7 +6,7 @@ ASFLAGS = -f elf -F dwarf
 CC = gcc
 CFLAGS = -m32
 
-all: $(NAME)
+all: $(NAME) $(NAME5x10)
 
 clean:
 	rm -rf $(NAME) $(NAME).o $(NAME).lst
