@@ -89,6 +89,7 @@
 %define MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
 %define	MAX_DEFENSE		11	; max number of defenders
 
+%define	SCORE_ROLLOVER	100	; display score%SCORE_ROLLOVER
 %define	TOUCHDOWN_PTS	7	; points for a touchdown
 %define	FIELDGOAL_PTS	3	; points for a field goal
 %define	FIELDPOS	20	; starting field position
@@ -1543,7 +1544,7 @@ playfield_begin db      "   ----------------------------------------------------
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | * | D | * | * | * | D | * | * | * | * | * | * |||    ", 10
                 db      "\  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  / ", 10
-                db      " | ||| O | * | * | * | D | * | D | * | * | * | D | * | * | * | * ||| |  ", 10
+                db      " | ||| * | O | * | * | D | * | D | * | * | * | D | * | * | * | * ||| |  ", 10
                 db      "/  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  \ ", 10
                 db      "   ||| * | * | * | * | D | * | * | * | D | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
@@ -1707,6 +1708,10 @@ drawboard:
 	; visitor score : 2 digits
 	xor	edx, edx
 	mov	eax, DWORD [visitorscore]
+        mov     ecx, SCORE_ROLLOVER
+        div     ecx
+        mov     eax, edx
+        xor     edx, edx
 	div	ebx
 	push	edx
 	push	eax
@@ -1723,6 +1728,10 @@ drawboard:
 	push_home_score:
 	xor	edx, edx
 	mov	eax, DWORD [homescore]
+        mov     ecx, SCORE_ROLLOVER
+        div     ecx
+        mov     eax, edx
+        xor     edx, edx
 	div	ebx
 	push	edx
 	push	eax
