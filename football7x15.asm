@@ -1532,7 +1532,7 @@ segment .data
 ; match the layout of the playing field.
 ;
 boardstr	db	"                                                    ", 10
-		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+		db	"                      %c HOME: %d%d   %c VISITOR: %d%d              ", 10
 		db	"                                                    ", 10
 		db	"   --------------                                     --------------    ", 10
 		db	"   | QUARTER: %d |                                     | TIME: %d%d.%d |    ", 10
