@@ -1490,11 +1490,11 @@ segment .data
 ; each possible player position is marked with *, O, or D.
 ;
 ; O indicates the starting position for the offense.
-; D indicates the starting position for eacf defensive
+; D indicates the starting position for each defensive
 ; player.
 ;
 ; The playfing field size may be changed within the bounds
-; of MIN/MAX_FIELD_WIDTH and MIN/MAX_FIELD_LENGTH.  It must be
+; of MAX_FIELD_WIDTH and MAX_FIELD_LENGTH.  It must be
 ; rectangular; i.e. each row has the same number of columns
 ; of player positions.
 ;
