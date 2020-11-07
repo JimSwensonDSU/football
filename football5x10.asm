@@ -179,11 +179,11 @@ segment .bss
 	debug_on		resd	1	; 1 = yes, 0 = no
 
 segment .text
-	global  asm_main
+	global  main
 	extern	usleep
 	extern  fcntl, tcsetattr, tcgetattr
 
-asm_main:
+main:
 	push	ebp
 	mov		ebp, esp
 	; ********** CODE STARTS HERE **********
