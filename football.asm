@@ -188,9 +188,11 @@ asm_main:
 	mov		ebp, esp
 	; ********** CODE STARTS HERE **********
 
+	call	hidecursor
 	call	terminal_raw_mode
 	call	run_game
 	call	terminal_restore_mode
+	call	showcursor
 
 	; *********** CODE ENDS HERE ***********
 	mov		eax, 0
@@ -1468,12 +1470,10 @@ drawsplash:
 	rep	movsb
 
 	; print the splash screen
-	call	hidecursor
 	call	homecursor
 	push	splashstr
 	call	printf
 	add	esp, 4
-	call	showcursor
 
 	; restore splashstr
 	mov	edi, DWORD [ebp - 4]
@@ -1720,7 +1720,6 @@ drawboard:
 
 
 	print_the_board:
-	call	hidecursor
 	call	homecursor
 	push	boardstr
 	call	printf
@@ -1783,7 +1782,6 @@ drawboard:
 
 
 	leave_drawboard:
-	call	showcursor
 
 	pop	edx
 	pop	ecx
