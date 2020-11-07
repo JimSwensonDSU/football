@@ -85,7 +85,7 @@
 %define	DEFENSE_CHAR	'X'	; character for defensive players
 
 ; See boardstr for field layout and player positioning
-%define MAX_FIELD_WIDTH		5	; max number of player positions across the width of the field
+%define MAX_FIELD_WIDTH		9	; max number of player positions across the width of the field
 %define MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
 %define	MAX_DEFENSE		11	; max number of defenders
 
