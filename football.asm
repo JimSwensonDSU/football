@@ -41,6 +41,14 @@
 ; See the comments in printf for details and which format
 ; strings are supported.
 ;
+; NOTE:
+; - Linux system calls are used for file open, close,
+;   read, and write operations.
+; - libc functions are used for:
+;     sleeps: usleep
+;     STDIN settings: fcntl
+;     terminal settings: tcsetattr, tcgetattr
+;
 ;
 ; Ideas for game improvements:
 ; - implement random fumbles on a tackle
