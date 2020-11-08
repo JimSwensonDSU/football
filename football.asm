@@ -2662,7 +2662,7 @@ printf:
 	printf_string:
 		; Copy the string over to LOCAL_BUFF
 
-		push	edi		; Save edi, since needed for scasb
+		push	edi		; Save edi
 		mov	edi, [edi]	; Point edi to the string itself.
 
 		printf_string_loop:
