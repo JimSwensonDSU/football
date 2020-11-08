@@ -25,6 +25,9 @@
 ;
 ;   - Supports kick (punt or field goal)
 ;
+;   - Adds in chance of fumble on any tackle.  Set
+;     FUMBLE_PCT for chance of occurrence.
+;
 ;   - Instead of sound, a splash screen is used to communicate
 ;     game events.
 ;
@@ -51,7 +54,6 @@
 ;
 ;
 ; Ideas for game improvements:
-; - implement random fumbles on a tackle
 ; - color
 ; - sound/beep
 ;
@@ -95,6 +97,7 @@
 %define	FIELDPOS	20	; starting field position
 %define	FIELDGOAL_MIN	65	; min fieldpos to attempt a field goal
 %define	FIELDGOAL_PCT	75	; percent success rate for hitting a field goal
+%define	FUMBLE_PCT	3	; percent rate of a fumble on a tackle
 %define	MIN_PUNT	20	; minimum punt distance
 %define	MAX_PUNT	60	; maximum punt distance
 %define	GAME_TIME	150	; length of a quarter
@@ -122,6 +125,7 @@ segment .data
 	msg_fieldgoalmiss	db	"FIELD GOAL MISSED", 0
 	msg_tackle		db	"TACKLED", 0
 	msg_punt		db	"PUNTED", 0
+	msg_fumble		db	"!!! FUMBLED !!!", 0
 	msg_gameover		db	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
 	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER, MAN!", 0
 
@@ -152,6 +156,7 @@ segment .bss
 	requireenter	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
+	fumble		resd	1	; 1 = yes, 0 = no
 	punt		resd	1	; 1 = yes, 0 = no
 	fieldgoal	resd	1	; 1 = yes, 0 = no
 
@@ -315,6 +320,7 @@ init_game:
 	mov	DWORD [requireenter], 0
 	mov	DWORD [playrunning], 0
 	mov	DWORD [tackle], 0
+	mov	DWORD [fumble], 0
 	mov	DWORD [punt], 0
 	mov	DWORD [fieldgoal], 0
 
@@ -580,11 +586,12 @@ update_game_state:
 
 	state_touchdown:
 		cmp	DWORD [fieldpos], 100
-		jl	state_tackle
+		jl	state_fumble
 
 		; It's a touchdown
 		mov	DWORD [playrunning], 0
 		mov	DWORD [tackle], 0
+		mov	DWORD [fumble], 0
 
 		; Increment score
 		push	TOUCHDOWN_PTS
@@ -609,6 +616,44 @@ update_game_state:
 
 		call	init_player_positions
 
+		jmp	state_end_of_quarter
+
+
+
+	; check for a fumble
+	;
+	; - display "fumble" splash screen
+	; - switch home/visitor
+	; - switch direction
+	; - fieldpos = 100 - fieldpos
+	; - down = 1
+	; - yards to go = 10
+	state_fumble:
+		cmp	DWORD [fumble], 1
+		jne	state_tackle
+
+		; It's a fumble
+		call	drawboard
+		push	msg_fumble
+		call	drawsplash
+		add	esp, 4
+
+		; Wait until user hits enter
+		call	wait_for_enter
+
+		; update field position
+		mov	DWORD [tackle], 0
+		mov	DWORD [fumble], 0
+		call	switch_team
+
+		mov	eax, 100
+		sub	eax, DWORD [fieldpos]
+		mov	DWORD [fieldpos], eax
+		mov	DWORD [lineofscrimmage], eax
+
+		mov	DWORD [down], 1
+		mov	DWORD [yardstogo], 10
+		call	init_player_positions
 		jmp	state_end_of_quarter
 
 
@@ -641,6 +686,7 @@ update_game_state:
 
 		; update field position
 		mov	DWORD [tackle], 0
+		mov	DWORD [fumble], 0
 		mov	eax, DWORD [fieldpos]
 		sub	eax, DWORD [lineofscrimmage]	; eax = gain
 		sub	DWORD [yardstogo], eax
@@ -1028,6 +1074,31 @@ do_punt:
 
 ;------------------------------------------------------------------------------
 ;
+; void check_fumble()
+;
+; Checks for a fumble with FUMBLE_PCT chance of occurrence.
+;
+check_fumble:
+	enter	0, 0
+
+	; Check for a fumble
+	push	100
+	call	random
+	add	esp, 4
+	cmp	eax, FUMBLE_PCT
+	jge	leave_check_fumble
+
+	; It's a fumble
+	mov	DWORD [fumble], 1
+
+	leave_check_fumble:
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
 ; void move_offense(int deltaX, int deltaY)
 ;
 ; Move the offense by deltaX, deltaY.
@@ -1114,6 +1185,7 @@ move_offense:
 	check_for_tackle:
 
 		mov	DWORD [tackle], 0
+		mov	DWORD [fumble], 0
 
 		mov	eax, DWORD [offense]		; offenseX
 		mov	ebx, DWORD [offense + 4]	; offens Y
@@ -1136,6 +1208,9 @@ move_offense:
 
 		; Offense player is tackled
 		mov	DWORD [playrunning], 0
+
+		; Check for a fumble
+		call	check_fumble
 
 		; restore the saved values for offense and fieldpos
 		mov	eax, DWORD [ebp - 4]		; offenseX
@@ -1292,6 +1367,10 @@ move_defense:
 	; We don't update the real defense position for this case.
 	mov	DWORD [tackle], 1
 	mov	DWORD [playrunning], 0
+
+	; Check for a fumble
+	call	check_fumble
+
 	jmp	leave_move_defense
 
 
@@ -1558,8 +1637,9 @@ debugstr	db	10
 		db	"   State Variables       Hit 0 - 5 to change skill: ", 10
 		db	" -------------------                                ", 10
 		db	"          tackle: %d      0 - sarcastaball          ", 10
-		db	"     playrunning: %d      3 - challenging           ", 10
-		db	"    requireenter: %d      5 - hurt me plenty        ", 10
+		db	"          fumble: %d      3 - challenging           ", 10
+		db	"     playrunning: %d      5 - hurt me plenty        ", 10
+		db	"    requireenter: %d                                ", 10
 		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
 		db	"      possession: %d                                ", 10
@@ -1784,11 +1864,12 @@ drawboard:
 	push	DWORD [fieldpos]
 	push	DWORD [requireenter]
 	push	DWORD [playrunning]
+	push	DWORD [fumble]
 	push	DWORD [tackle]
 
 	push	debugstr
 	call	printf
-	add	esp, 48
+	add	esp, 52
 
 
 
