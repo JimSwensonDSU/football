@@ -153,7 +153,7 @@ segment .bss
 	possession	resd	1	; 1 = home, -1 = visitor
 	skilllevel	resd	1	; skill level, 0-5.  0 = easy, 5 = hard
 
-	requireenter	resd	1	; 1 = yes, 0 = no
+	gamepaused	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
 	fumble		resd	1	; 1 = yes, 0 = no
@@ -317,7 +317,7 @@ init_game:
 	mov	DWORD [quarter], 1
 	mov	DWORD [timeremaining], GAME_TIME
 
-	mov	DWORD [requireenter], 0
+	mov	DWORD [gamepaused], 0
 	mov	DWORD [playrunning], 0
 	mov	DWORD [tackle], 0
 	mov	DWORD [fumble], 0
@@ -819,28 +819,31 @@ segment .data
 	;
 	;    key, handler, deltaX, deltaY
 	;
-	;     key - key to press
-	; handler - address for the handler code for that input
-	;  deltaX - change to offenseX (only needed for movement)
-	;  deltaY - change to offenseY (only needed for movement)
+	;           key   - key to press
+	;       handler   - address for the handler code for that input
+	; ignore on pause - Ingore the key if gamepaused.  1 = ignore, 0 = don't ignore
+	;        deltaX   - change to offenseX (only needed for movement)
+	;        deltaY   - change to offenseY (only needed for movement)
 	;
 	; Using DWORD for each for arithmetic.
 	;
-	input_table	dd	KEY_UP,		check_movement,		0,	-1
-			dd	KEY_DOWN,	check_movement,		0,	1
-			dd	KEY_RIGHT,	check_movement,		1,	0
-			dd	KEY_LEFT,	check_movement,		-1,	0
-			dd	'0',		check_skill_level,	0,	0
-			dd	'1',		check_skill_level,	0,	0
-			dd	'2',		check_skill_level,	0,	0
-			dd	'3',		check_skill_level,	0,	0
-			dd	'4',		check_skill_level,	0,	0
-			dd	'5',		check_skill_level,	0,	0
-			dd	KEY_DEBUG,	check_debug,		0,	0
-			dd	KEY_QUIT,	check_quit,		0,	0
-			dd	KEY_CTRLC,	check_ctrlc,		0,	0
-			dd	KEY_ENTER,	check_enter,		0,	0
-			dd	KEY_KICK,	check_kick,		0,	0
+	;			key		ignore on pause	handler			deltaX	deltaY
+	;			---------	---------------	-----------------	------	------
+	input_table	dd	KEY_UP,		1,		check_movement,		0,	-1
+			dd	KEY_DOWN,	1,		check_movement,		0,	1
+			dd	KEY_RIGHT,	1,		check_movement,		1,	0
+			dd	KEY_LEFT,	1,		check_movement,		-1,	0
+			dd	'0',		1,		check_skill_level,	0,	0
+			dd	'1',		1,		check_skill_level,	0,	0
+			dd	'2',		1,		check_skill_level,	0,	0
+			dd	'3',		1,		check_skill_level,	0,	0
+			dd	'4',		1,		check_skill_level,	0,	0
+			dd	'5',		1,		check_skill_level,	0,	0
+			dd	KEY_DEBUG,	1,		check_debug,		0,	0
+			dd	KEY_QUIT,	0,		check_quit,		0,	0
+			dd	KEY_CTRLC,	0,		check_ctrlc,		0,	0
+			dd	KEY_ENTER,	0,		check_enter,		0,	0
+			dd	KEY_KICK,	1,		check_kick,		0,	0
 			dd	0
 
 process_input:
@@ -848,6 +851,7 @@ process_input:
 
 	push	eax
 	push	ebx
+	push	ecx
 
 	; Check for input
 	; Could let "search_input_table" handle this case ...
@@ -860,9 +864,9 @@ process_input:
 	; Search input_table
 	;
 	search_input_table:
-	lea	ebx, [input_table - 16]
+	lea	ebx, [input_table - 20]
 	search_input_loop:
-		add	ebx, 16
+		add	ebx, 20
 		cmp	DWORD [ebx], 0	; end of table
 
 		; Input not found in input_table
@@ -873,12 +877,18 @@ process_input:
 
 		; found the key
 		; ebx      : key
-		; ebx + 4  : handler
-		; ebx + 8  : deltaX (for movement)
-		; ebx + 12 : deltaY (for movement)
+		; ebx + 4  : ignore on pause
+		; ebx + 8  : handler
+		; ebx + 12 : deltaX (for movement)
+		; ebx + 16 : deltaY (for movement)
+
+		; Check for ignore on pause
+		mov	ecx, DWORD [ebx + 4]
+		and	ecx, DWORD [gamepaused]
+		jnz	leave_process_input
 
 		; push the address of the handler and jump to it
-		push	DWORD [ebx + 4]
+		push	DWORD [ebx + 8]
 		ret
 
 
@@ -908,7 +918,7 @@ process_input:
 	check_quit:
 		mov	DWORD [gameover], 1
 		mov	DWORD [hardquit], 1
-		mov	DWORD [requireenter], 0
+		mov	DWORD [gamepaused], 0
 		jmp	leave_process_input
 
 
@@ -919,7 +929,7 @@ process_input:
 		mov	DWORD [abort], 1
 		mov	DWORD [gameover], 1
 		mov	DWORD [hardquit], 1
-		mov	DWORD [requireenter], 0
+		mov	DWORD [gamepaused], 0
 		jmp	leave_process_input
 
 
@@ -927,7 +937,7 @@ process_input:
 	; Checking for Enter
 	;
 	check_enter:
-		mov	DWORD [requireenter], 0
+		mov	DWORD [gamepaused], 0
 		jmp	leave_process_input
 
 
@@ -935,12 +945,9 @@ process_input:
 	; Checking for offense movement
 	;
 	check_movement:
-		cmp	DWORD [requireenter], 1
-		je	leave_process_input
-
 		mov	DWORD [playrunning], 1
-		push	DWORD [ebx + 12]	; deltaY
-		push	DWORD [ebx + 8]		; deltaX
+		push	DWORD [ebx + 16]	; deltaY
+		push	DWORD [ebx + 12]	; deltaX
 		call	move_offense
 		add	esp, 8
 		jmp	leave_process_input
@@ -953,9 +960,6 @@ process_input:
 	; - if fieldpos >= FIELDGOAL_MIN, try a fieldgoal, otherwise a punt
 	;
 	check_kick:
-		cmp	DWORD [requireenter], 1
-		je	leave_process_input
-
 		; Must be 4th down
 		cmp	DWORD [down], 4
 		jne	leave_process_input
@@ -979,6 +983,7 @@ process_input:
 
 	leave_process_input:
 
+	pop	ecx
 	pop	ebx
 	pop	eax
 
@@ -996,11 +1001,11 @@ process_input:
 wait_for_enter:
 	enter	0, 0
 
-	mov	DWORD [requireenter], 1
+	mov	DWORD [gamepaused], 1
 
 	wait_for_enter_loop:
 		call	process_input
-		cmp	DWORD [requireenter], 1
+		cmp	DWORD [gamepaused], 1
 		je	wait_for_enter_loop
 
 	leave
@@ -1653,7 +1658,7 @@ debugstr	db	10
 		db	"          tackle: %d      0 - sarcastaball          ", 10
 		db	"          fumble: %d      3 - challenging           ", 10
 		db	"     playrunning: %d      5 - hurt me plenty        ", 10
-		db	"    requireenter: %d                                ", 10
+		db	"      gamepaused: %d                                ", 10
 		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
 		db	"      possession: %d                                ", 10
@@ -1876,7 +1881,7 @@ drawboard:
 	push	DWORD [possession]
 	push	DWORD [lineofscrimmage]
 	push	DWORD [fieldpos]
-	push	DWORD [requireenter]
+	push	DWORD [gamepaused]
 	push	DWORD [playrunning]
 	push	DWORD [fumble]
 	push	DWORD [tackle]
