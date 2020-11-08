@@ -972,7 +972,7 @@ do_fieldgoal:
 
 	; Field goal missed
 	fieldgoal_miss:
-		mov	eax, 1
+		mov	eax, 0
 		jmp	leave_do_fieldgoal
 
 	leave_do_fieldgoal:
