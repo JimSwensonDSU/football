@@ -1875,7 +1875,6 @@ drawdebug:
 
 	; Home the cursor.
 	; Scan through boardstr and print the newlines.
-	; Then clear to the end of screen.
 	call	homecursor
 	mov	eax, boardstr
 	dec	eax
@@ -1891,19 +1890,19 @@ drawdebug:
 		jmp	scan_boardstr
 
 	scan_boardstr_end:
-	call	clear_to_endofscreen
-
-	;
-	; Debug info
-	;
 	cmp	DWORD [debug_on], 1
-	jne	leave_drawdebug
+	je	drawdebug_show
 
+	; Not showing the debug info
+	call	clear_to_endofscreen
+	jmp	leave_drawdebug
+
+
+	drawdebug_show:
 
 	;
 	; Player positions
 	;
-
 	; offense
 	push	DWORD [offense + 4]	; offenseY
 	push	DWORD [offense]		; offenseX
