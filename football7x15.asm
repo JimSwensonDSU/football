@@ -97,7 +97,7 @@
 %define	FIELDPOS	20	; starting field position
 %define	FIELDGOAL_MIN	65	; min fieldpos to attempt a field goal
 %define	FIELDGOAL_PCT	75	; percent success rate for hitting a field goal
-%define	FUMBLE_PCT	3	; percent rate of a fumble on a tackle
+%define	FUMBLE_PCT	1	; percent rate of a fumble on a tackle
 %define	MIN_PUNT	20	; minimum punt distance
 %define	MAX_PUNT	60	; maximum punt distance
 %define	GAME_TIME	150	; length of a quarter
