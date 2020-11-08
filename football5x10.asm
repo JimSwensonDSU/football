@@ -177,6 +177,9 @@ segment .bss
 	defense_start	resd	2 * MAX_DEFENSE
 	defense_num	resd	1
 
+	; String to hold the same # of newlines as in boardstr
+	boardstr_nl	resb	100	; 100 should be enough
+
 	; counters
 	defense_counter	resd	1
 	timer_counter	resd	1
@@ -1878,26 +1881,14 @@ debugstr	db	10
 drawdebug:
 	enter	0, 0
 
-	push	eax
 	push	ecx
 
-	; Home the cursor.
-	; Scan through boardstr and print the newlines.
+	; Home the cursor and print newlines to drop below the board display
 	call	homecursor
-	mov	eax, boardstr
-	dec	eax
-	scan_boardstr:
-		inc	eax
-		cmp	BYTE [eax], 0
-		je	scan_boardstr_end
-		cmp	BYTE [eax], 10
-		jne	scan_boardstr
-		push	debugstrnewline
-		call	printf
-		add	esp, 4
-		jmp	scan_boardstr
+	push	boardstr_nl
+	call	printf
+	add	esp, 4
 
-	scan_boardstr_end:
 	cmp	DWORD [debug_on], 1
 	je	drawdebug_show
 
@@ -1954,7 +1945,6 @@ drawdebug:
 	leave_drawdebug:
 
 	pop	ecx
-	pop	eax
 
 	leave
 	ret
@@ -1994,6 +1984,23 @@ init_field:
 	push	edx
 	push	esi
 	push	edi
+
+	; Copy newlines from boardstr to boardstr_nl
+	mov	esi, boardstr
+	mov	edi, boardstr_nl
+	dec	esi
+	scan_boardstr:
+		inc	esi
+		cmp	BYTE [esi], 0
+		je	scan_boardstr_end
+		cmp	BYTE [esi], 10
+		jne	scan_boardstr
+		mov	BYTE [edi], 10
+		inc	edi
+		jmp	scan_boardstr
+
+	scan_boardstr_end:
+	mov	BYTE [edi], 0
 
 	mov	esi, playfield_begin
 	mov	DWORD [field_length], 0
