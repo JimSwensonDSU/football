@@ -93,7 +93,7 @@
 %define	TOUCHDOWN_PTS	7	; points for a touchdown
 %define	FIELDGOAL_PTS	3	; points for a field goal
 %define	FIELDPOS	20	; starting field position
-%define	FIELDGOAL_MIN	70	; min fieldpos to attempt a field goal
+%define	FIELDGOAL_MIN	65	; min fieldpos to attempt a field goal
 %define	FIELDGOAL_PCT	75	; percent success rate for hitting a field goal
 %define	MIN_PUNT	20	; minimum punt distance
 %define	MAX_PUNT	60	; maximum punt distance
@@ -584,6 +584,7 @@ update_game_state:
 
 		; It's a touchdown
 		mov	DWORD [playrunning], 0
+		mov	DWORD [tackle], 0
 
 		; Increment score
 		push	TOUCHDOWN_PTS
