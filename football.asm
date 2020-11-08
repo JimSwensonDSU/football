@@ -833,13 +833,13 @@ segment .data
 			dd	KEY_DOWN,	1,		check_movement,		0,	1
 			dd	KEY_RIGHT,	1,		check_movement,		1,	0
 			dd	KEY_LEFT,	1,		check_movement,		-1,	0
-			dd	'0',		1,		check_skill_level,	0,	0
-			dd	'1',		1,		check_skill_level,	0,	0
-			dd	'2',		1,		check_skill_level,	0,	0
-			dd	'3',		1,		check_skill_level,	0,	0
-			dd	'4',		1,		check_skill_level,	0,	0
-			dd	'5',		1,		check_skill_level,	0,	0
-			dd	KEY_DEBUG,	1,		check_debug,		0,	0
+			dd	'0',		0,		check_skill_level,	0,	0
+			dd	'1',		0,		check_skill_level,	0,	0
+			dd	'2',		0,		check_skill_level,	0,	0
+			dd	'3',		0,		check_skill_level,	0,	0
+			dd	'4',		0,		check_skill_level,	0,	0
+			dd	'5',		0,		check_skill_level,	0,	0
+			dd	KEY_DEBUG,	0,		check_debug,		0,	0
 			dd	KEY_QUIT,	0,		check_quit,		0,	0
 			dd	KEY_CTRLC,	0,		check_ctrlc,		0,	0
 			dd	KEY_ENTER,	0,		check_enter,		0,	0
@@ -854,9 +854,9 @@ process_input:
 	push	ecx
 
 	; Check for input
-	; Could let "search_input_table" handle this case ...
 	call	get_key
 	cmp	al, -1
+	; Could let "search_input_table" handle this case ...
 	je	leave_process_input
 
 
@@ -896,9 +896,9 @@ process_input:
 	; Check for skill level change
 	;
 	check_skill_level:
-		and	eax, 0x000000ff
-		sub	al, '0'
 		mov	DWORD [skilllevel], eax
+		sub	DWORD [skilllevel], '0'
+		call	drawdebug
 		jmp	leave_process_input
 
 
@@ -909,6 +909,7 @@ process_input:
 		mov	eax, 1
 		sub	eax, DWORD [debug_on]
 		mov	DWORD [debug_on], eax
+		call	drawdebug
 		jmp	leave_process_input
 
 
@@ -1646,27 +1647,6 @@ playfield_end	db	"   ---------------------------------------------    ", 10
 		db	"     Hit Enter after each play                      ", 10
 		db	"     Hit %c to toggle debug display                  ", 10
 		db	10
-		db	0x1b, "[0J" ; clear to end of screen
-		db	0
-
-playposstr	db	" %d,%d", 0
-
-debugstr	db	10
-		db	"                                                    ", 10
-		db	"   State Variables       Hit 0 - 5 to change skill: ", 10
-		db	" -------------------                                ", 10
-		db	"          tackle: %d      0 - sarcastaball          ", 10
-		db	"          fumble: %d      3 - challenging           ", 10
-		db	"     playrunning: %d      5 - hurt me plenty        ", 10
-		db	"      gamepaused: %d                                ", 10
-		db	"        fieldpos: %d                                ", 10
-		db	" lineofscrimmage: %d                                ", 10
-		db	"      possession: %d                                ", 10
-		db	"       direction: %d                                ", 10
-		db	"      skilllevel: %d                                ", 10
-		db	"    field_length: %d                                ", 10
-		db	"     field_width: %d                                ", 10
-		db	"     defense_num: %d                                ", 10
 		db	0
 
 drawboard:
@@ -1843,8 +1823,81 @@ drawboard:
 	;
 	; Debug info
 	;
+	call	drawdebug
+
+
+	leave_drawboard:
+
+	pop	edx
+	pop	ecx
+	pop	ebx
+	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void drawdebug()
+;
+; Draw the debug info
+;
+segment .data
+
+playposstr	db	" %d,%d", 0
+
+debugstrnewline	db	10, 0
+
+debugstr	db	10
+		db	"                                                    ", 10
+		db	"   State Variables       Hit 0 - 5 to change skill: ", 10
+		db	" -------------------                                ", 10
+		db	"          tackle: %d      0 - sarcastaball          ", 10
+		db	"          fumble: %d      3 - challenging           ", 10
+		db	"     playrunning: %d      5 - hurt me plenty        ", 10
+		db	"      gamepaused: %d                                ", 10
+		db	"        fieldpos: %d                                ", 10
+		db	" lineofscrimmage: %d                                ", 10
+		db	"      possession: %d                                ", 10
+		db	"       direction: %d                                ", 10
+		db	"      skilllevel: %d                                ", 10
+		db	"    field_length: %d                                ", 10
+		db	"     field_width: %d                                ", 10
+		db	"     defense_num: %d                                ", 10
+		db	0
+drawdebug:
+	enter	0, 0
+
+	push	eax
+	push	ecx
+
+	; Home the cursor.
+	; Scan through boardstr and print the newlines.
+	; Then clear to the end of screen.
+	call	homecursor
+	mov	eax, boardstr
+	dec	eax
+	scan_boardstr:
+		inc	eax
+		cmp	BYTE [eax], 0
+		je	scan_boardstr_end
+		cmp	BYTE [eax], 10
+		jne	scan_boardstr
+		push	debugstrnewline
+		call	printf
+		add	esp, 4
+		jmp	scan_boardstr
+
+	scan_boardstr_end:
+	call	clear_to_endofscreen
+
+	;
+	; Debug info
+	;
 	cmp	DWORD [debug_on], 1
-	jne	leave_drawboard
+	jne	leave_drawdebug
 
 
 	;
@@ -1891,12 +1944,9 @@ drawboard:
 	add	esp, 52
 
 
+	leave_drawdebug:
 
-	leave_drawboard:
-
-	pop	edx
 	pop	ecx
-	pop	ebx
 	pop	eax
 
 	leave
@@ -2175,6 +2225,28 @@ clearscreen:
 
 ;------------------------------------------------------------------------------
 ;
+; void clear_to_endofscreen()
+;
+; Clear from the cursor to the end of the screen
+;
+segment .data
+
+	clearendstr	db	0x1b, "[0J", 0
+
+clear_to_endofscreen:
+	enter	0, 0
+
+	push	clearendstr
+	call	printf
+	add	esp, 4
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
 ; void homecursor()
 ;
 ; Home the cursor
@@ -2318,6 +2390,7 @@ get_key:
 
 	; Local vars:
 	; [ebp - 4] : Read char
+	mov	BYTE [ebp - 4], -1
 
 	push	ebx
 	push	ecx
