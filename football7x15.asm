@@ -1488,7 +1488,7 @@ switch_team:
 ; Draw a splash screen with given message s.
 ; Will center the message.
 ;
-%define	MAX_S_LEN	31
+%define	MAX_S_LEN	51
 segment .data
 
 splashstr	db	10
@@ -1503,7 +1503,7 @@ splashstr	db	10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   |||   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |||    ", 10
                 db      "\  ||-   -                                                       -||  / ", 10
-                db      " | |||   |                           *                           ||| |  ", 10
+                db      " | |||   |                         *                         |   ||| |  ", 10
                 db      "/  ||-   -                                                       -||  \ ", 10
                 db      "   |||   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
