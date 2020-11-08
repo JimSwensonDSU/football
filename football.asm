@@ -813,23 +813,34 @@ update_game_state:
 ;
 segment .data
 
-	; Player movement table
+	; Player input table
 	;
 	; Rows of the form:
 	;
-	;    key, deltaX, deltaY
+	;    key, handler, deltaX, deltaY
 	;
-	;    key - key to press
-	; deltaX - change to offenseX
-	; deltaY - change to offenseY
+	;     key - key to press
+	; handler - address for the handler code for that input
+	;  deltaX - change to offenseX (only needed for movement)
+	;  deltaY - change to offenseY (only needed for movement)
 	;
-	; Using DWORD for each of arithmetic.
+	; Using DWORD for each for arithmetic.
 	;
-	move_table	dd	KEY_UP,		0,	-1
-			dd	KEY_DOWN,	0,	1
-			dd	KEY_DOWN,	0,	1
-			dd	KEY_RIGHT,	1,	0
-			dd	KEY_LEFT,	-1,	0
+	input_table	dd	KEY_UP,		check_movement,		0,	-1
+			dd	KEY_DOWN,	check_movement,		0,	1
+			dd	KEY_RIGHT,	check_movement,		1,	0
+			dd	KEY_LEFT,	check_movement,		-1,	0
+			dd	'0',		check_skill_level,	0,	0
+			dd	'1',		check_skill_level,	0,	0
+			dd	'2',		check_skill_level,	0,	0
+			dd	'3',		check_skill_level,	0,	0
+			dd	'4',		check_skill_level,	0,	0
+			dd	'5',		check_skill_level,	0,	0
+			dd	KEY_DEBUG,	check_debug,		0,	0
+			dd	KEY_QUIT,	check_quit,		0,	0
+			dd	KEY_CTRLC,	check_ctrlc,		0,	0
+			dd	KEY_ENTER,	check_enter,		0,	0
+			dd	KEY_KICK,	check_kick,		0,	0
 			dd	0
 
 process_input:
@@ -839,19 +850,42 @@ process_input:
 	push	ebx
 
 	; Check for input
+	; Could let "search_input_table" handle this case ...
 	call	get_key
 	cmp	al, -1
 	je	leave_process_input
 
 
 	;
+	; Search input_table
+	;
+	search_input_table:
+	lea	ebx, [input_table - 16]
+	search_input_loop:
+		add	ebx, 16
+		cmp	DWORD [ebx], 0	; end of table
+
+		; Input not found in input_table
+		je	leave_process_input
+
+		cmp	BYTE [ebx], al
+		jne	search_input_loop
+
+		; found the key
+		; ebx      : key
+		; ebx + 4  : handler
+		; ebx + 8  : deltaX (for movement)
+		; ebx + 12 : deltaY (for movement)
+
+		; push the address of the handler and jump to it
+		push	DWORD [ebx + 4]
+		ret
+
+
+	;
 	; Check for skill level change
 	;
 	check_skill_level:
-		cmp	al, '0'
-		jl	check_debug
-		cmp	al, '5'
-		jg	check_debug
 		and	eax, 0x000000ff
 		sub	al, '0'
 		mov	DWORD [skilllevel], eax
@@ -862,8 +896,6 @@ process_input:
 	; Checking for debug toggle
 	;
 	check_debug:
-		cmp	al, KEY_DEBUG
-		jne	check_quit
 		mov	eax, 1
 		sub	eax, DWORD [debug_on]
 		mov	DWORD [debug_on], eax
@@ -874,8 +906,6 @@ process_input:
 	; Checking for quit
 	;
 	check_quit:
-		cmp	al, KEY_QUIT
-		jne	check_ctrlc
 		mov	DWORD [gameover], 1
 		mov	DWORD [hardquit], 1
 		mov	DWORD [requireenter], 0
@@ -886,8 +916,6 @@ process_input:
 	; Checking for ctrl-c
 	;
 	check_ctrlc:
-		cmp	al, KEY_CTRLC
-		jne	check_enter
 		mov	DWORD [abort], 1
 		mov	DWORD [gameover], 1
 		mov	DWORD [hardquit], 1
@@ -899,11 +927,6 @@ process_input:
 	; Checking for Enter
 	;
 	check_enter:
-		cmp	DWORD [requireenter], 1
-		jne	check_movement
-
-		cmp	al, KEY_ENTER
-		jne	leave_process_input
 		mov	DWORD [requireenter], 0
 		jmp	leave_process_input
 
@@ -912,24 +935,15 @@ process_input:
 	; Checking for offense movement
 	;
 	check_movement:
-	lea	ebx, [move_table - 12]
-	movement_loop:
-		add	ebx, 12
-		cmp	DWORD [ebx], 0	; end of table
-		je	movement_loop_end
+		cmp	DWORD [requireenter], 1
+		je	leave_process_input
 
-		cmp	BYTE [ebx], al
-		jne	movement_loop
-
-		; found the key
 		mov	DWORD [playrunning], 1
-
-		push	DWORD [ebx + 8]	; deltaY
-		push	DWORD [ebx + 4]	; deltaX
+		push	DWORD [ebx + 12]	; deltaY
+		push	DWORD [ebx + 8]		; deltaX
 		call	move_offense
 		add	esp, 8
 		jmp	leave_process_input
-	movement_loop_end:
 
 
 
@@ -938,9 +952,9 @@ process_input:
 	; - To allow, must be 4th down and no play running.
 	; - if fieldpos >= FIELDGOAL_MIN, try a fieldgoal, otherwise a punt
 	;
-	check_KICK:
-		cmp	al, KEY_KICK
-		jne	leave_process_input
+	check_kick:
+		cmp	DWORD [requireenter], 1
+		je	leave_process_input
 
 		; Must be 4th down
 		cmp	DWORD [down], 4
