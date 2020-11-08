@@ -177,9 +177,6 @@ segment .bss
 	defense_start	resd	2 * MAX_DEFENSE
 	defense_num	resd	1
 
-	; String to hold the same # of newlines as in boardstr
-	boardstr_nl	resb	100	; 100 should be enough
-
 	; counters
 	defense_counter	resd	1
 	timer_counter	resd	1
@@ -1849,9 +1846,9 @@ drawboard:
 ;
 segment .data
 
-playposstr	db	" %d,%d", 0
+debugcurpos	db	0x1b, "[000B", 0	; populated by init_field()
 
-debugstrnewline	db	10, 0
+playposstr	db	" %d,%d", 0
 
 debugstr	db	10
 		db	"                                                    ", 10
@@ -1877,7 +1874,7 @@ drawdebug:
 
 	; Home the cursor and print newlines to drop below the board display
 	call	homecursor
-	push	boardstr_nl
+	push	debugcurpos
 	call	printf
 	add	esp, 4
 
@@ -1977,22 +1974,33 @@ init_field:
 	push	esi
 	push	edi
 
-	; Copy newlines from boardstr to boardstr_nl
+	;
+	; Count # of newlines in boardstr and populate debugcurpos.
+	;
+	mov	eax, 0
 	mov	esi, boardstr
-	mov	edi, boardstr_nl
 	dec	esi
-	scan_boardstr:
+	debugcurpos_loop:
 		inc	esi
 		cmp	BYTE [esi], 0
-		je	scan_boardstr_end
+		je	debugcurpos_end
 		cmp	BYTE [esi], 10
-		jne	scan_boardstr
-		mov	BYTE [edi], 10
-		inc	edi
-		jmp	scan_boardstr
+		jne	debugcurpos_loop
+		inc	eax
+		jmp	debugcurpos_loop
+	debugcurpos_end:
 
-	scan_boardstr_end:
-	mov	BYTE [edi], 0
+	mov	ecx, 10
+	xor	edx, edx
+	div	ecx
+	add	BYTE [debugcurpos+4], dl
+	xor	edx, edx
+	div	ecx
+	add	BYTE [debugcurpos+3], dl
+	xor	edx, edx
+	div	ecx
+	add	BYTE [debugcurpos+2], dl
+
 
 	mov	esi, playfield_begin
 	mov	DWORD [field_length], 0
