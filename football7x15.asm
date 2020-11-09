@@ -1511,7 +1511,7 @@ switch_team:
 ;
 segment .data
 
-; populated by init_field()
+; These populated by init_field()
 splashpos	db	0x1b, "[000B", 0x1b, "[000C", 0
 splashlen	dd	0
 
@@ -1533,19 +1533,19 @@ drawsplash:
 
 
 	; Calculate length of s
-	mov	edi, [ebp + 8]
+	mov	edi, [ebp + 8]		; s
 	mov	ecx, DWORD [splashlen]	; limit to splashlen characters
 	inc	ecx
 	xor	al, al
 	cld
 	repnz	scasb
 	mov	edx, DWORD [splashlen]
-	sub	edx, ecx	; edx = length of s
+	sub	edx, ecx		; edx = length of s
 	mov	DWORD [ebp - 12], edx
 
 	; Calculate leading spaces needed to center s
 	mov	ecx, DWORD [splashlen]
-	sub	ecx, edx
+	sub	ecx, DWORD [ebp - 12]
 	shr	ecx, 1
 	mov	DWORD [ebp - 4], ecx
 
@@ -1556,10 +1556,10 @@ drawsplash:
 	mov	DWORD [ebp - 8], ecx
 
 	; Position the cursor
-	call homecursor
-	push splashpos
-	call printf
-	add esp, 4
+	call	homecursor
+	push	splashpos
+	call	printf
+	add	esp, 4
 
 	; Print leading spaces
 	splash_print_leading:
@@ -1574,7 +1574,7 @@ drawsplash:
 	splash_print_leading_end:
 
 	; Print s
-	mov	esi, [ebp + 8]
+	mov	esi, DWORD [ebp + 8]
 	splash_print_s:
 		cmp	DWORD [ebp - 12], 0
 		je	splash_print_s_end
@@ -1868,7 +1868,7 @@ drawboard:
 ;
 segment .data
 
-debugcurpos	db	0x1b, "[000B", 0	; populated by init_field()
+debugpos	db	0x1b, "[000B", 0	; populated by init_field()
 
 playposstr	db	" %d,%d", 0
 
@@ -1897,9 +1897,9 @@ drawdebug:
 
 	push	ecx
 
-	; Home the cursor and print newlines to drop below the board display
+	; Home the cursor and move the cursor to the debug display position
 	call	homecursor
-	push	debugcurpos
+	push	debugpos
 	call	printf
 	add	esp, 4
 
@@ -1925,15 +1925,15 @@ drawdebug:
 
 	; defense
 	mov	ecx, DWORD [defense_num]
-	push_defense_pos:
-		push	ecx
+	show_defense_pos:
+		push	ecx	; pushing ecx since libc printf clobbers it
 		push	DWORD [defense + 8*ecx-4]	; defenseX
 		push	DWORD [defense + 8*ecx-8]	; defenseX
 		push	playposstr
 		call	printf
 		add	esp, 12
-		pop	ecx
-		loop	push_defense_pos
+		pop	ecx	; restore ecx
+		loop	show_defense_pos
 
 	;
 	; state info
@@ -1975,6 +1975,9 @@ drawdebug:
 ; of offense, starting locations of all defense, and number of
 ; defense.
 ;
+; Also creates the debugpos and splashpos strings for cursor
+; positioning.
+;
 ; Return: 0 - success, non 0 - failure
 ;
 ;         1 - More than 1 offensive player on playfield
@@ -2004,40 +2007,46 @@ init_field:
 	push	edi
 
 	;
-	; Count # of newlines in boardstr and populate debugcurpos.
+	; Count # of newlines in boardstr and populate debugpos.
+	;
+	; Esc[nnnB : Move cursor down nnn lines
 	;
 	mov	eax, 0	; count of newlines
 	mov	esi, boardstr
 	dec	esi
-	debugcurpos_loop:
+	debugpos_loop:
 		inc	esi
 		cmp	BYTE [esi], 0
-		je	debugcurpos_end
+		je	debugpos_end
 		cmp	BYTE [esi], 10
-		jne	debugcurpos_loop
+		jne	debugpos_loop
 		inc	eax
-		jmp	debugcurpos_loop
+		jmp	debugpos_loop
+	debugpos_end:
 
-	debugcurpos_end:
-
+	; eax = # of newlines found
+	; Use mod 10 arithmetic to get the 1s, 10s, and 100s digits
 	mov	ecx, 10
 	xor	edx, edx
 	div	ecx
-	add	BYTE [debugcurpos+4], dl	; 1s digit
+	add	BYTE [debugpos+4], dl	; 1s digit
 	xor	edx, edx
 	div	ecx
-	add	BYTE [debugcurpos+3], dl	; 10s digit
+	add	BYTE [debugpos+3], dl	; 10s digit
 	xor	edx, edx
 	div	ecx
-	add	BYTE [debugcurpos+2], dl	; 100s digit
+	add	BYTE [debugpos+2], dl	; 100s digit
 
 
 
 	;
 	; Find the @ markers in boardstr and populate splashpos
 	;
+	; Esc[nnnB : Move cursor down nnn lines
+	; Esc[nnnC : Move cursor right nnn columns
 
-	; Search for the first @ in boardstr
+	; Search for the first @ in boardstr.
+	; Need to keep track of its left margin offset as well.
 	mov	eax, 0	; count of newlines
 	mov	ebx, -1	; offset from start of a line
 	mov	esi, boardstr
@@ -2055,12 +2064,15 @@ init_field:
 		mov	ebx, -1
 		jmp splashpos_loop1
 
-	; If we get here, no '@' found.  Error
+	; If we get here, no '@' found.  Error.
 	splashpos_fail1:
 		mov	eax, 11
 		jmp	leave_init_field
 
 	; Found the first @.  Populate splashpos
+	; eax = # of newlines found.
+	; ebx = left margin offset of @
+	; Use mod 10 arithmetic to get the 1s, 10s, and 100s digits
 	splashpos_start:
 
 	; row
@@ -2088,11 +2100,10 @@ init_field:
 	div	ecx
 	add	BYTE [splashpos+8], dl	; 100s digit
 
-	; save esi in edi (location of the first @)
-	mov	BYTE [esi], ' '	; blank out the @ in the boardstr
+	; save esi in edi (location of the first @) and
+	; blank out the @ in the boardstr.
 	mov	edi, esi
-		cmp	BYTE [esi], 0
-		je	splashpos_fail2
+	mov	BYTE [esi], ' '
 
 	; Search for the second @ in boardstr
 	splashpos_loop2:
@@ -2103,14 +2114,15 @@ init_field:
 		je	splashpos_end
 		jmp	splashpos_loop2
 
-	; If we get here, no second '@' found.  Error
+	; If we get here, no second '@' found.  Error.
 	splashpos_fail2:
 		mov	eax, 12
 		jmp	leave_init_field
 
-	; Found the second @.  Populate splashlen
+	; Found the second @.  Populate splashlen.  This will be
+	; used to limit the size of any splash message.
 	splashpos_end:
-		mov	BYTE [esi], ' '	; black out the @ in the boardstr
+		mov	BYTE [esi], ' '	; blank out the @ in the boardstr
 		mov	eax, esi
 		sub	eax, edi
 		inc	eax
