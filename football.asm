@@ -2090,8 +2090,8 @@ debugstr	db	10
 		db	"      skilllevel: %d      4 - NFL                   ", 10
 		db	"                         5 - Bo Jackson level      ", 10
 		db	"                                                    ", 10
-		db	"        fieldpos: %d                                ", 10
-		db	" lineofscrimmage: %d                                ", 10
+		db	"        fieldpos: %d%d    Jim Swenson                ", 10
+		db	" lineofscrimmage: %d%d    Jim.Swenson@trojans.dsu.edu", 10
 		db	"      possession: %d                                ", 10
 		db	"       direction: %d                                ", 10
 		db	"    field_length: %d                                ", 10
@@ -2102,7 +2102,9 @@ debugstr	db	10
 drawdebug:
 	enter	0, 0
 
+	push	eax
 	push	ecx
+	push	edx
 
 	; Home the cursor and move the cursor to the debug display position
 	call	homecursor
@@ -2151,8 +2153,26 @@ drawdebug:
 	push	DWORD [field_length]
 	push	DWORD [direction]
 	push	DWORD [possession]
-	push	DWORD [lineofscrimmage]
-	push	DWORD [fieldpos]
+
+	; Show 2 digits for lineofscrimmage
+	; Only need to div once, since lineofscrimmage < 100
+	mov	ecx, 10
+	mov	eax, DWORD [lineofscrimmage]
+	xor	edx, edx
+	div	ecx
+	push	edx
+	push	eax
+
+	; Show 2 digits for fieldpos
+	; Div twice to handle case of 100
+	mov	eax, DWORD [fieldpos]
+	xor	edx, edx
+	div	ecx
+	push	edx
+	xor	edx, edx
+	div	ecx
+	push	edx
+
 	push	DWORD [skilllevel]
 	push	DWORD [fumble]
 	push	DWORD [tackle]
@@ -2161,12 +2181,14 @@ drawdebug:
 
 	push	debugstr
 	call	printf
-	add	esp, 56
+	add	esp, 64
 
 
 	leave_drawdebug:
 
+	pop	edx
 	pop	ecx
+	pop	eax
 
 	leave
 	ret
