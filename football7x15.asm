@@ -288,6 +288,7 @@ run_game:
 
 
 	run_game_done:
+	call	drawdebug
 
 	pop	eax
 
