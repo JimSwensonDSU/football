@@ -1639,7 +1639,7 @@ segment .data
 ; replaced with a space in the boardstr. 
 ;
 boardstr	db	"                                                    ", 10
-		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+		db	"                      %c HOME: %d%d   %c VISITOR: %d%d              ", 10
 		db	"                                                    ", 10
 		db	"   --------------                                     --------------    ", 10
 		db	"   | QUARTER: %d |                                     | TIME: %d%d.%d |    ", 10
