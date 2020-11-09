@@ -215,7 +215,13 @@ run_game:
 
 	push	eax
 
+	call	choose_field
+	cmp	eax, -1
+	je	run_game_leave
+
+	push	eax
 	call	init_field
+	add	esp, 4
 	cmp	eax, 0
 	je	continue_init
 
@@ -223,7 +229,7 @@ run_game:
 	push	init_field_failure_fmt
 	call	printf
 	add	esp, 8
-	jmp	run_game_done
+	jmp	run_game_leave
 
 
 	continue_init:
@@ -290,6 +296,7 @@ run_game:
 	run_game_done:
 	call	drawdebug
 
+	run_game_leave:
 	pop	eax
 
 	leave
@@ -1615,20 +1622,44 @@ drawsplash:
 segment .data
 
 ;
-; boardstr
+; These are set by
+;
+boardstr	dd	0
+playfield_begin	dd	0
+playfield_end	dd	0
+
+
+;
+; field_options
+;
+; This is an array of the available choices for game boards.
+; Each row has 4 addresses specified:
+;
+; desc         - A description of the game board.
+; boardstr     - The full board.
+; pfield_begin - Within the board, the start of the playing field.
+; pfield_end   - Within the board, the start of the playing field.
+;
+field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
+		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1
+		dd	boarddesc_2, boardstr_2, pfield_begin_2, pfield_end_2
+		dd	0
+
+;
+; boardstr_N definition
 ;
 ; This fmt string contains the entire game display, with printf
 ; format specifiers for various game stats and inputs, etc.
 ;
 ; The actual playing field is marked with the labels
-; playfield_begin and playfield_end.  Within the playfied,
+; pfield_begin_N and pfield_end_N.  Within the playfied,
 ; each possible player position is marked with *, O, or D.
 ;
 ; O indicates the starting position for the offense.
 ; D indicates the starting position for each defensive
 ; player.
 ;
-; The playfing field size may be changed within the bounds
+; The playing field size may be set within the bounds
 ; of MAX_FIELD_WIDTH and MAX_FIELD_LENGTH.  It must be
 ; rectangular; i.e. each row has the same number of columns
 ; of player positions.  The init_field() function attempts
@@ -1638,21 +1669,90 @@ segment .data
 ; The first pair of @s are used for this and subsequently
 ; replaced with a space in the boardstr. 
 ;
-boardstr	db	"                                                    ", 10
+
+
+boarddesc_0	db	"Field Dimensions: 3x10, Number of Defense: 5", 0
+boardstr_0	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
 		db	"                                                    ", 10
 		db	"   --------------                 --------------    ", 10
 		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
-playfield_begin	db	"   ---------------------------------------------    ", 10
+pfield_begin_0	db	"   ---------------------------------------------    ", 10
 		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
 		db	" | ||| O |@* | * | D | * | D | * | * | D@| * ||| |  ", 10
 		db	"/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
 		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
-playfield_end	db	"   ---------------------------------------------    ", 10
+pfield_end_0	db	"   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
 		db	"   ---------------------------------------------    ", 10
+		db	"                                                    ", 10
+		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT        ", 10
+		db	"         Kick: %c (only on 4th down)                 ", 10
+		db	"         Quit: %c                                    ", 10
+		db	"                                                    ", 10
+		db	"     Hit Enter after each play                      ", 10
+		db	"     Hit %c to toggle debug display                  ", 10
+		db	10
+		db	0
+
+
+boarddesc_1	db	"Field Dimensions: 5x10, Number of Defense: 9", 0
+boardstr_1	db	"                                                    ", 10
+		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+		db	"                                                    ", 10
+		db	"   --------------                 --------------    ", 10
+		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
+pfield_begin_1	db      "   ---------------------------------------------    ", 10
+                db      "   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
+                db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
+                db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
+                db      "\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
+                db      " | ||| O |@* | * | D | * | * | D | * | D@| * ||| |  ", 10
+                db      "/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
+                db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
+                db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
+                db      "   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
+pfield_end_1	db      "   ---------------------------------------------    ", 10
+		db	"   ---------------------------------------------    ", 10
+		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
+		db	"   ---------------------------------------------    ", 10
+		db	"                                                    ", 10
+		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT        ", 10
+		db	"         Kick: %c (only on 4th down)                 ", 10
+		db	"         Quit: %c                                    ", 10
+		db	"                                                    ", 10
+		db	"     Hit Enter after each play                      ", 10
+		db	"     Hit %c to toggle debug display                  ", 10
+		db	10
+		db	0
+
+
+boarddesc_2	db	"Field Dimensions: 7x15, Number of Defense: 11", 0
+boardstr_2	db	"                                                    ", 10
+		db	"                      %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+		db	"                                                    ", 10
+		db	"   --------------                                     --------------    ", 10
+		db	"   | QUARTER: %d |                                     | TIME: %d%d.%d |    ", 10
+pfield_begin_2	db      "   -----------------------------------------------------------------    ", 10
+                db      "   ||| * | * | * | D | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
+                db      "   ||| * | * | * | * | * | D | * | * | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
+                db      "   ||| * | * | * | D | * | * | * | D | * | * | * | * | * | * | * |||    ", 10
+                db      "\  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  / ", 10
+                db      " | ||| O | * |@* | D | * | D | * | * | * | D | * | * | *@| * | * ||| |  ", 10
+                db      "/  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  \ ", 10
+                db      "   ||| * | * | * | D | * | * | * | D | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
+                db      "   ||| * | * | * | * | * | D | * | * | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
+                db      "   ||| * | * | * | D | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
+pfield_end_2	db      "   -----------------------------------------------------------------    ", 10
+		db	"             ---------------------------------------------    ", 10
+		db	"             | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
+		db	"             ---------------------------------------------    ", 10
 		db	"                                                    ", 10
 		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT        ", 10
 		db	"         Kick: %c (only on 4th down)                 ", 10
@@ -1825,7 +1925,7 @@ drawboard:
 
 	print_the_board:
 	call	homecursor
-	push	boardstr
+	push	DWORD [boardstr]
 	call	printf
 	add	esp, 96
 
@@ -1846,6 +1946,94 @@ drawboard:
 	pop	ecx
 	pop	ebx
 	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int choose_field()
+;
+; Displays the field options and prompts user to choose.
+; Supports up to 10 choices.
+;
+; Return:  n - for a chosen option
+;         -1 - No choice made (they hit quit or ctrl-c)
+;
+segment .data
+
+choose_fmt1	db	"Electronic Football", 10, 10
+		db	"Choose from one of the following field options.", 10, 10
+		db	"Hit the corresponding number to choose, or ", KEY_QUIT, " to quit.", 10, 10, 0
+
+choose_fmt2	db	"  %d - %s", 10, 0
+
+choose_field:
+	enter	0, 0
+
+	push	ebx
+	push	esi
+
+	call	clearscreen
+	call	homecursor
+	push	choose_fmt1
+	call	printf
+	add	esp, 4
+
+	;
+	; Show the field options to the user
+	;
+	mov	ebx, -1
+	mov	esi, field_options
+	choose_field_show_options:
+		cmp	DWORD [esi], 0
+		je	choose_field_show_options_end
+		inc	ebx
+		push	DWORD [esi]
+		push	ebx
+		push	choose_fmt2
+		call	printf
+		add	esp, 12
+		add	esi, 16
+		jmp	choose_field_show_options
+	choose_field_show_options_end:
+
+
+	;
+	; Wait for the user to choose a valid option, or quit.
+	;
+	add	ebx, '0'
+	mov	eax, -1
+	read_option:
+		call	get_key
+
+		cmp	al, KEY_QUIT
+		je	choose_field_quit
+
+		cmp	al, KEY_CTRLC
+		je	choose_field_quit
+
+		cmp	al, '0'
+		jl	read_option
+		cmp	al, bl
+		jg	read_option
+
+
+	; They chose a valid option
+	sub	eax, '0'
+	jmp	choose_field_leave
+
+
+	choose_field_quit:
+		mov	eax, -1
+		jmp	choose_field_leave
+
+
+	choose_field_leave:
+	pop	esi
+	pop	ebx
 
 	leave
 	ret
@@ -1960,7 +2148,9 @@ drawdebug:
 
 ;------------------------------------------------------------------------------
 ;
-; int init_field()
+; int init_field(int board_num)
+;
+; board - which game board to use, as defined in the field_options array.
 ;
 ; Scans through the playfield to detemine all the field length,
 ; field width, location of all player positions, starting location
@@ -1984,9 +2174,13 @@ drawdebug:
 ;        10 - too many player positions on a field row
 ;        11 - missing @ splash markers in boardstr
 ;        12 - missing @ splash markers in boardstr
+;        13 - invalid board_num
 ;
 init_field:
 	enter	12, 0
+
+	; Arguments:
+	; [ebp + 8] : board_num
 
 	; Local Vars:
 	; [ebp - 4]  : set to 1 when we have a player position on the current line
@@ -1998,13 +2192,38 @@ init_field:
 	push	esi
 	push	edi
 
+
+	;
+	; Find the board_num in field_options
+	;
+	mov	eax, 13
+	mov	ecx, -1
+	mov	esi, field_options
+	sub	esi, 16
+	find_field_option:
+		add	esi, 16
+		cmp	DWORD [esi], 0
+		je	leave_init_field
+		inc	ecx
+		cmp	ecx, DWORD [ebp + 8]	; board_num
+		jne	find_field_option
+
+	; esi is pointing to the field option
+	mov	eax, DWORD [esi + 4]
+	mov	DWORD [boardstr], eax
+	mov	eax, DWORD [esi + 8]
+	mov	DWORD [playfield_begin], eax
+	mov	eax, DWORD [esi + 12]
+	mov	DWORD [playfield_end], eax
+
+
 	;
 	; Count # of newlines in boardstr and populate debugpos.
 	;
 	; Esc[nnnB : Move cursor down nnn lines
 	;
 	mov	eax, 0	; count of newlines
-	mov	esi, boardstr
+	mov	esi, DWORD [boardstr]
 	dec	esi
 	debugpos_loop:
 		inc	esi
@@ -2041,7 +2260,7 @@ init_field:
 	; Need to keep track of its left margin offset as well.
 	mov	eax, 0	; count of newlines
 	mov	ebx, -1	; offset from start of a line
-	mov	esi, boardstr
+	mov	esi, DWORD [boardstr]
 	dec	esi
 	splashpos_loop1:
 		inc	esi
@@ -2122,7 +2341,7 @@ init_field:
 
 
 
-	mov	esi, playfield_begin
+	mov	esi, DWORD [playfield_begin]
 	mov	DWORD [field_length], 0
 	mov	DWORD [field_width], 0
 	mov	DWORD [playpos_num], 0
@@ -2133,7 +2352,7 @@ init_field:
 
 	init_field_next:
 		inc	esi
-		cmp	esi, playfield_end
+		cmp	esi, DWORD [playfield_end]
 		jge	init_field_done
 
 		cmp	BYTE [esi], '*'		; player position
