@@ -91,6 +91,7 @@
 ;
 %define	OFFENSE_CHAR	'O'	; character for offensive player
 %define	DEFENSE_CHAR	'X'	; character for defensive players
+%define	POSSESSION_CHAR	'*'	; character for the possession indicator
 
 ; See boardstr for field layout and player positioning
 %define MAX_FIELD_WIDTH		9	; max number of player positions across the width of the field
@@ -861,6 +862,8 @@ segment .data
 			dd	KEY_KICK,	1,		check_kick,		0,	0
 			dd	0
 
+	input_table_rec_size	dd	20
+
 process_input:
 	enter	0, 0
 
@@ -879,9 +882,10 @@ process_input:
 	; Search input_table
 	;
 	search_input_table:
-	lea	ebx, [input_table - 20]
+	mov	ebx, input_table
+	sub	ebx, DWORD [input_table_rec_size]
 	search_input_loop:
-		add	ebx, 20
+		add	ebx, DWORD [input_table_rec_size]
 		cmp	DWORD [ebx], 0	; end of table
 
 		; Input not found in input_table
@@ -1629,11 +1633,16 @@ drawsplash:
 segment .data
 
 ;
-; These are set by
+; These are set by init_field()
 ;
 boardstr	dd	0
 playfield_begin	dd	0
 playfield_end	dd	0
+marker_off	db	0
+marker_def	db	0
+marker_playpos	db	0
+marker_splash	db	0
+space_repl	db	0
 
 
 ;
@@ -1642,16 +1651,23 @@ playfield_end	dd	0
 ; This is an array of the available choices for game boards.
 ; Each row has 4 addresses specified:
 ;
-; desc         - A description of the game board.
-; boardstr     - The full board.
-; pfield_begin - Within the board, the start of the playing field.
-; pfield_end   - Within the board, the start of the playing field.
+; desc           - A description of the game board.
+; boardstr       - The full board.
+; pfield_begin   - Within the board, the start of the playing field.
+; pfield_end     - Within the board, the start of the playing field.
+; marker_off     - Within the board, character used to mark the offensive player.
+; marker_def     - Within the board, character used to mark defensive players.
+; marker_playpos - WIthin the board, character used to mark other valid player positions.
+; marker_splash  - Within the board, character used to mark the splash message start/end.
+; splace_repl    - Character to use to replace the splash markers.
 ;
-field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
-		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1
-		dd	boarddesc_2, boardstr_2, pfield_begin_2, pfield_end_2
-		dd	boarddesc_3, boardstr_3, pfield_begin_3, pfield_end_3
+field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0
+		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1
+		dd	boarddesc_2, boardstr_2, pfield_begin_2, pfield_end_2, marker_off_2, marker_def_2, marker_playpos_2, marker_splash_2, splash_repl_2
+		dd	boarddesc_3, boardstr_3, pfield_begin_3, pfield_end_3, marker_off_3, marker_def_3, marker_playpos_3, marker_splash_3, splash_repl_3
 		dd	0
+
+field_option_rec_size	dd	36
 
 ;
 ; boardstr_N definition
@@ -1662,28 +1678,10 @@ field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
 ; By providing a sufficient and consistent right padding, the
 ; display will "self recover" ok on window resizes.  As well,
 ; padding to at least the width of the debug info is desired.
-; See boardstr_3, for example.  It is suggested that you first
-; layout the board without any % included for the format
-; specifiers in order to get the spacing right, then go back
-; and add the % in.
 ;
-;
-; PLAYER POSITION LAYOUT
-;
-; The actual playing field is marked with the labels
-; pfield_begin_N and pfield_end_N.  Within the playfied,
-; each possible player position is marked with *, O, or D.
-;
-;  O Indicates the starting position for the offense.
-;    There may be only 1 offense position.
-;
-;  D Indicates the starting position for each defensive player.
-;    There must be at least 1 defensive position.
-;
-;  * Indicates other player positions.
-;
-; NOTE: Any other use of 0, D, or * between pfield_begin_N and
-;       pfield_end_N will cause problems!
+; It is suggested that you first layout the board without
+; any % included for the format specifiers in order to get
+; the spacing right, then go back and add the % in.
 ;
 ;
 ; PLAYFIELD SIZE
@@ -1695,17 +1693,41 @@ field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
 ; to enforce this.
 ;
 ;
+; PLAYER POSITION LAYOUT
+;
+; The actual playing field is marked with the labels
+; pfield_begin_N and pfield_end_N.  Within the playfied,
+; each possible player position is marked with a character:
+;
+;      marker_off_N - Indicates the starting position for the offense.
+;                     There may be only 1 offense position.
+;      marker_def_N - Indicates the starting position for each defensive player.
+;                     There must be at least 1 defensive position.
+;
+;  marker_playpos_N - Indicates other player positions.
+;
+; NOTE: Any other use of these characters between pfield_begin_N
+;       and pfield_end_N will cause problems.  Setting these
+;       characters at a board specific level gives some
+;       flexibility then.
+;
+;
 ; SPLASH MESSAGE LOCATION
 ;
-; The @ markers indicate the location of the splash message.
+; The splash markers indicate the location of the splash message.
 ;
-; The first pair of @s are used for this and subsequently
-; replaced with a space in the boardstr. 
+; marker_splash_N - The splash marker character.
+;   splash_repl_N - Character to replace splash markers.
 ;
-; The @ markers must be located as follows:
+; The first pair of splash markers are used for this and subsequently
+; replaced with a the splash_repl_N character in the boardstr. 
+;
+; The splash markers must be located as follows:
+;
 ;   - Between pfield_begin_N and pfield_end_N
-;   - On a position that will look good as a space
-;     during game play.
+;
+;   - On a position that will look good as a splash_repl_N
+;     character during game play.
 ;
 ;
 ; FORMAT SPECIFIERS
@@ -1752,8 +1774,21 @@ field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
 ;      %c - quit
 ;      %c - debug
 ;
+;
+; See the definition for boardstr_3 for an example
+; of the alternate types of layouts that are possible
+; through the use of the different character definitions.
+;
+
 
 boarddesc_0	db	"Field Dimensions: 3x10, Number of Defense: 5", 0
+
+marker_off_0		db	'O'
+marker_def_0		db	'D'
+marker_playpos_0	db	'*'
+marker_splash_0		db	'@'
+splash_repl_0		db	' '
+
 boardstr_0	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
 		db	"                                                    ", 10
@@ -1781,6 +1816,13 @@ pfield_end_0	db	"   ---------------------------------------------    ", 10
 
 
 boarddesc_1	db	"Field Dimensions: 5x10, Number of Defense: 9", 0
+
+marker_off_1		db	'O'
+marker_def_1		db	'D'
+marker_playpos_1	db	'*'
+marker_splash_1		db	'@'
+splash_repl_1		db	' '
+
 boardstr_1	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
 		db	"                                                    ", 10
@@ -1812,6 +1854,13 @@ pfield_end_1	db      "   ---------------------------------------------    ", 10
 
 
 boarddesc_2	db	"Field Dimensions: 7x15, Number of Defense: 11", 0
+
+marker_off_2		db	'O'
+marker_def_2		db	'D'
+marker_playpos_2	db	'*'
+marker_splash_2		db	'@'
+splash_repl_2		db	' '
+
 boardstr_2	db	"                                                                        ", 10
 		db	"                      %c HOME: %d%d   %c VISITOR: %d%d                       ", 10
 		db	"                                                                        ", 10
@@ -1847,18 +1896,24 @@ pfield_end_2	db      "   -------------------------------------------------------
 
 
 boarddesc_3	db	"Field Dimensions:  3x6, Number of Defense: 3", 0
+
+marker_off_3		db	'&'
+marker_def_3		db	'!'
+marker_playpos_3	db	'^'
+marker_splash_3		db	'$'
+splash_repl_3		db	'|'
+
 boardstr_3	db	"                                                    ", 10
 		db	"    %c HOME: %d%d   %c VISITOR: %d%d                      ", 10
 		db	"   -----------------------------                    ", 10
 		db	"   || QUARTER: %d | TIME: %d%d.%d ||                    ", 10
 pfield_begin_3	db	"   -----------------------------                    ", 10
-		db	"   ||| * | * | D | * | * | * |||                    ", 10
-		db	"\  ||-   -   -   -   -   -   -||  /                 ", 10
-		db	" | ||| O | * | * | D | * | * ||| |                  ", 10
-		db	"/  ||-   -   -   -   -   -   -||  \                 ", 10
-		db	" @ ||| * | * | D | * | * | * ||| @                  ", 10
+		db	"   ||| ^ | ^ | ! | ^ | ^ | ^ |||                    ", 10
+		db	"\  ||-   -   -   -   -   -   -||  /  DOWN: %d        ", 10
+		db	" | |$| & | ^ | ^ | ! | ^ | ^ |$| |  FIELD: %d%d%c      ", 10
+		db	"/  ||-   -   -   -   -   -   -||  \ YARDS: %d%d       ", 10
+		db	"   ||| ^ | ^ | ! | ^ | ^ | ^ |||                    ", 10
 pfield_end_3	db	"   -----------------------------                    ", 10
-		db	"   DOWN:%d   FIELD:%d%d%c  YARDS:%d%d                     ", 10
 		db	"                                                    ", 10
 		db	"   Movement: %c=UP    %c=LEFT                         ", 10
 		db	"             %c=DOWN  %c=RIGHT                        ", 10
@@ -2007,7 +2062,7 @@ drawboard:
 	push	' '
 	jmp	push_home_score
 	is_visitor_possession:
-	push	'*'
+	push	POSSESSION_CHAR
 
 	; home score : 2 digits
 	push_home_score:
@@ -2027,7 +2082,7 @@ drawboard:
 	push	' '
 	jmp	print_the_board
 	is_home_possession:
-	push	'*'
+	push	POSSESSION_CHAR
 
 
 	print_the_board:
@@ -2103,7 +2158,7 @@ choose_field:
 		push	choose_fmt2
 		call	printf
 		add	esp, 12
-		add	esi, 16
+		add	esi, DWORD [field_option_rec_size]
 		jmp	choose_field_show_options
 	choose_field_show_options_end:
 
@@ -2305,8 +2360,8 @@ drawdebug:
 ;         8 - field_width = 0
 ;         9 - playpos_num != field_length * field_width
 ;        10 - too many player positions on a field row
-;        11 - missing @ splash markers in boardstr
-;        12 - missing @ splash markers in boardstr
+;        11 - missing splash markers in boardstr
+;        12 - missing splash markers in boardstr
 ;        13 - invalid board_num
 ;
 init_field:
@@ -2332,9 +2387,9 @@ init_field:
 	mov	eax, 13
 	mov	ecx, -1
 	mov	esi, field_options
-	sub	esi, 16
+	sub	esi, DWORD [field_option_rec_size]
 	find_field_option:
-		add	esi, 16
+		add	esi, DWORD [field_option_rec_size]
 		cmp	DWORD [esi], 0
 		je	leave_init_field
 		inc	ecx
@@ -2344,10 +2399,33 @@ init_field:
 	; esi is pointing to the field option
 	mov	eax, DWORD [esi + 4]
 	mov	DWORD [boardstr], eax
+
 	mov	eax, DWORD [esi + 8]
 	mov	DWORD [playfield_begin], eax
+
 	mov	eax, DWORD [esi + 12]
 	mov	DWORD [playfield_end], eax
+
+	mov	eax, DWORD [esi + 16]
+	mov	al, BYTE [eax]
+	mov	BYTE [marker_off], al
+
+	mov	eax, DWORD [esi + 20]
+	mov	al, BYTE [eax]
+	mov	BYTE [marker_def], al
+
+	mov	eax, DWORD [esi + 24]
+	mov	al, BYTE [eax]
+	mov	BYTE [marker_playpos], al
+
+	mov	eax, DWORD [esi + 28]
+	mov	al, BYTE [eax]
+	mov	BYTE [marker_splash], al
+
+	mov	eax, DWORD [esi + 32]
+	mov	al, BYTE [eax]
+	mov	BYTE [space_repl], al
+
 
 
 	;
@@ -2384,12 +2462,12 @@ init_field:
 
 
 	;
-	; Find the @ markers in boardstr and populate splashpos
+	; Find the splash markers in boardstr and populate splashpos
 	;
 	; Esc[nnnB : Move cursor down nnn lines
 	; Esc[nnnC : Move cursor right nnn columns
 
-	; Search for the first @ in boardstr.
+	; Search for the first splash marker in boardstr.
 	; Need to keep track of its left margin offset as well.
 	mov	eax, 0	; count of newlines
 	mov	ebx, -1	; offset from start of a line
@@ -2400,7 +2478,8 @@ init_field:
 		inc	ebx
 		cmp	BYTE [esi], 0
 		je	splashpos_fail1
-		cmp	BYTE [esi], '@'
+		mov	cl, BYTE [esi]
+		cmp	cl, BYTE [marker_splash]
 		je	splashpos_start
 		cmp	BYTE [esi], 10
 		jne	splashpos_loop1
@@ -2408,14 +2487,14 @@ init_field:
 		mov	ebx, -1
 		jmp splashpos_loop1
 
-	; If we get here, no '@' found.  Error.
+	; If we get here, no splash marker found.  Error.
 	splashpos_fail1:
 		mov	eax, 11
 		jmp	leave_init_field
 
-	; Found the first @.  Populate splashpos
+	; Found the first splash marker.  Populate splashpos
 	; eax = # of newlines found.
-	; ebx = left margin offset of @
+	; ebx = left margin offset of splash marker
 	; Use mod 10 arithmetic to get the 1s, 10s, and 100s digits
 	splashpos_start:
 
@@ -2444,29 +2523,32 @@ init_field:
 	div	ecx
 	add	BYTE [splashpos+8], dl	; 100s digit
 
-	; save esi in edi (location of the first @) and
-	; blank out the @ in the boardstr.
+	; save esi in edi (location of the first splash marker) and
+	; overwrite the splash marker in the boardstr.
 	mov	edi, esi
-	mov	BYTE [esi], ' '
+	mov	cl, BYTE [space_repl]
+	mov	BYTE [esi], cl
 
-	; Search for the second @ in boardstr
+	; Search for the second splash marker in boardstr
 	splashpos_loop2:
 		inc	esi
 		cmp	BYTE [esi], 0
 		je	splashpos_fail2
-		cmp	BYTE [esi], '@'
+		mov	cl, BYTE [esi]
+		cmp	cl, BYTE [marker_splash]
 		je	splashpos_end
 		jmp	splashpos_loop2
 
-	; If we get here, no second '@' found.  Error.
+	; If we get here, no second splash marker found.  Error.
 	splashpos_fail2:
 		mov	eax, 12
 		jmp	leave_init_field
 
-	; Found the second @.  Populate splashlen.  This will be
+	; Found the second splash marker.  Populate splashlen.  This will be
 	; used to limit the size of any splash message.
 	splashpos_end:
-		mov	BYTE [esi], ' '	; blank out the @ in the boardstr
+		mov	cl, BYTE [space_repl]
+		mov	BYTE [esi], cl	; overwrite the splash marker in the boardstr
 		mov	eax, esi
 		sub	eax, edi
 		inc	eax
@@ -2488,13 +2570,15 @@ init_field:
 		cmp	esi, DWORD [playfield_end]
 		jge	init_field_done
 
-		cmp	BYTE [esi], '*'		; player position
+		mov	cl, BYTE [esi]
+
+		cmp	cl, BYTE [marker_playpos]	; player position
 		je	init_field_add_playpos
 
-		cmp	BYTE [esi], 'O'		; offense position
+		cmp	cl, BYTE [marker_off]		; offense position
 		je	init_field_add_offense
 
-		cmp	BYTE [esi], 'D'		; defense position
+		cmp	cl, BYTE [marker_def]		; defense position
 		je	init_field_add_defense
 
 		cmp	BYTE [esi], 10
