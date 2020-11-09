@@ -463,7 +463,8 @@ reset_defense_counter:
 ;
 ; void update_game_state()
 ;
-; Checks for field goal, punt, touchdown, and tackle.
+; Checks for field goal, punt, touchdown, fumble, and tackle.
+; Also checks for end of quarters/game.
 ;
 update_game_state:
 	enter	0, 0
@@ -825,13 +826,13 @@ segment .data
 	;
 	; Rows of the form:
 	;
-	;    key, handler, deltaX, deltaY
+	;    key, handler, ignore on pause, deltaX, deltaY
 	;
-	;           key   - key to press
-	;       handler   - address for the handler code for that input
+	;             key - key to press
+	;         handler - address for the handler code for that input
 	; ignore on pause - Ingore the key if gamepaused.  1 = ignore, 0 = don't ignore
-	;        deltaX   - change to offenseX (only needed for movement)
-	;        deltaY   - change to offenseY (only needed for movement)
+	;          deltaX - change to offenseX (only needed for movement)
+	;          deltaY - change to offenseY (only needed for movement)
 	;
 	; Using DWORD for each for arithmetic.
 	;
