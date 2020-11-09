@@ -53,7 +53,7 @@
 ;     terminal settings: tcsetattr, tcgetattr
 ; - The screen refresh recovers reasonably well from
 ;   window resizes.  In some cases, hiding/showing the
-;   debug info may be needd to clean up that area.  This
+;   debug info may be needed to clean up that area.  This
 ;   is a tradeoff between appearance and covering every
 ;   resize use case.  Heavy handed clearing results in
 ;   an undesirable screen flicker effect, so this is
