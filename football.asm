@@ -1649,7 +1649,7 @@ space_repl	db	0
 ; field_options
 ;
 ; This is an array of the available choices for game boards.
-; Each row has 4 addresses specified:
+; Each row has these addresses specified:
 ;
 ; desc           - A description of the game board.
 ; boardstr       - The full board.
