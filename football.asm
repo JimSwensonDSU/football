@@ -127,7 +127,7 @@ segment .data
 	msg_punt		db	"*** PUNTED ***", 0
 	msg_fumble		db	"!!! FUMBLED !!!", 0
 	msg_gameover		db	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
-	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER, MAN!", 0
+	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER", 0
 
 	init_field_failure_fmt	db	"init_field() failed with return %d", 10, 0
 
@@ -1643,6 +1643,7 @@ playfield_end	dd	0
 field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
 		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1
 		dd	boarddesc_2, boardstr_2, pfield_begin_2, pfield_end_2
+		dd	boarddesc_3, boardstr_3, pfield_begin_3, pfield_end_3
 		dd	0
 
 ;
@@ -1760,6 +1761,31 @@ pfield_end_2	db      "   -------------------------------------------------------
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
 		db	"     Hit %c to toggle debug display                  ", 10
+		db	10
+		db	0
+
+
+boarddesc_3	db	"Field Dimensions:  3x6, Number of Defense: 3", 0
+boardstr_3	db	"                                                    ", 10
+		db	"    %c HOME: %d%d   %c VISITOR: %d%d     ", 10
+		db	"   -----------------------------   ", 10
+		db	"   || QUARTER: %d | TIME: %d%d.%d ||   ", 10
+pfield_begin_3	db	"   -----------------------------   ", 10
+		db	"   ||| * | * | D | * | * | * |||   ", 10
+		db	"\  ||-   -   -   -   -   -   -||  /", 10
+		db	" | ||| O | * | * | D | * | * ||| | ", 10
+		db	"/  ||-   -   -   -   -   -   -||  \", 10
+		db	" @ ||| * | * | D | * | * | * ||| @ ", 10
+pfield_end_3	db	"   -----------------------------   ", 10
+		db	"   DOWN:%d   FIELD:%d%d%c  YARDS:%d%d    ", 10
+		db	"                                   ", 10
+		db	"   Movement: %c=UP    %c=LEFT        ", 10
+		db	"             %c=DOWN  %c=RIGHT       ", 10
+		db	"       Kick: %c (only on 4th down)  ", 10
+		db	"       Quit: %c                     ", 10
+		db	"                                   ", 10
+		db	"   Hit Enter after each play       ", 10
+		db	"   Hit %c to toggle debug display   ", 10
 		db	10
 		db	0
 
