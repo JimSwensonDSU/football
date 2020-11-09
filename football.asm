@@ -1650,16 +1650,34 @@ field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
 ;
 ; boardstr_N definition
 ;
-; This fmt string contains the entire game display, with printf
+; The strings contains the entire game display, with printf
 ; format specifiers for various game stats and inputs, etc.
+;
+; By providing a sufficient and consistent right padding, the
+; display will "self recover" ok on window resizes.  As well,
+; padding to at least the width of the debug info is desired.
+; See boardstr_3, for example.
+;
+;
+; PLAYER POSITION LAYOUT
 ;
 ; The actual playing field is marked with the labels
 ; pfield_begin_N and pfield_end_N.  Within the playfied,
 ; each possible player position is marked with *, O, or D.
 ;
-; O indicates the starting position for the offense.
-; D indicates the starting position for each defensive
-; player.
+;  O Indicates the starting position for the offense.
+;    There may be only 1 offense position.
+;
+;  D Indicates the starting position for each defensive player.
+;    There must be at least 1 defensive position.
+;
+;  * Indicates other player positions.
+;
+; NOTE: Any other use of 0, D, or * between pfield_begin_N and
+;       pfield_end_N will cause problems!
+;
+;
+; PLAYFIELD SIZE
 ;
 ; The playing field size may be set within the bounds
 ; of MAX_FIELD_WIDTH and MAX_FIELD_LENGTH.  It must be
@@ -1667,11 +1685,64 @@ field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
 ; of player positions.  The init_field() function attempts
 ; to enforce this.
 ;
+;
+; SPLASH MESSAGE LOCATION
+;
 ; The @ markers indicate the location of the splash message.
+;
 ; The first pair of @s are used for this and subsequently
 ; replaced with a space in the boardstr. 
 ;
-
+; The @ markers must be located as follows:
+;   - Between pfield_begin_N and pfield_end_N
+;   - On a position that will look good as a space
+;     during game play.
+;
+;
+; FORMAT SPECIFIERS
+;
+; As currently coded, the boardstr must provide specific format
+; specifiers in this exact order:
+;
+;    home score:
+;      %c - possession indicator
+;      %d - 10s digit
+;      %d - 1s digit
+;
+;    visitor score:
+;      %c - possession indicator
+;      %d - 10s digit
+;      %d - 1s digit
+;
+;    quarter:
+;      %d - 1 digit
+;
+;    time remaining:
+;      %d - 100s digit
+;      %d - 10s digit
+;      %d - 1s digit
+;
+;    down:
+;      %d - 1s digit
+;
+;    field position:
+;      %d - 10s digit
+;      %d - 1s digit
+;      %c - direction indicator
+;
+;    yards to go:
+;      %d - 10s digit
+;      %d - 1s digit
+;
+;    keys
+;      %c - up
+;      %c - left
+;      %c - down
+;      %c - right
+;      %c - kick
+;      %c - quit
+;      %c - debug
+;
 
 boarddesc_0	db	"Field Dimensions: 3x10, Number of Defense: 5", 0
 boardstr_0	db	"                                                    ", 10
@@ -1732,8 +1803,8 @@ pfield_end_1	db      "   ---------------------------------------------    ", 10
 
 
 boarddesc_2	db	"Field Dimensions: 7x15, Number of Defense: 11", 0
-boardstr_2	db	"                                                    ", 10
-		db	"                      %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+boardstr_2	db	"                                                                        ", 10
+		db	"                      %c HOME: %d%d   %c VISITOR: %d%d                       ", 10
 		db	"                                                    ", 10
 		db	"   --------------                                     --------------    ", 10
 		db	"   | QUARTER: %d |                                     | TIME: %d%d.%d |    ", 10
@@ -1752,41 +1823,41 @@ pfield_begin_2	db      "   -----------------------------------------------------
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | D | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
 pfield_end_2	db      "   -----------------------------------------------------------------    ", 10
-		db	"             ---------------------------------------------    ", 10
-		db	"             | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
-		db	"             ---------------------------------------------    ", 10
-		db	"                                                    ", 10
-		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT        ", 10
-		db	"         Kick: %c (only on 4th down)                 ", 10
-		db	"         Quit: %c                                    ", 10
-		db	"                                                    ", 10
-		db	"     Hit Enter after each play                      ", 10
-		db	"     Hit %c to toggle debug display                  ", 10
+		db	"             ---------------------------------------------              ", 10
+		db	"             | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |              ", 10
+		db	"             ---------------------------------------------              ", 10
+		db	"                                                                        ", 10
+		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT                            ", 10
+		db	"         Kick: %c (only on 4th down)                                     ", 10
+		db	"         Quit: %c                                                        ", 10
+		db	"                                                                        ", 10
+		db	"     Hit Enter after each play                                          ", 10
+		db	"     Hit %c to toggle debug display                                      ", 10
 		db	10
 		db	0
 
 
 boarddesc_3	db	"Field Dimensions:  3x6, Number of Defense: 3", 0
 boardstr_3	db	"                                                    ", 10
-		db	"    %c HOME: %d%d   %c VISITOR: %d%d     ", 10
-		db	"   -----------------------------   ", 10
-		db	"   || QUARTER: %d | TIME: %d%d.%d ||   ", 10
-pfield_begin_3	db	"   -----------------------------   ", 10
-		db	"   ||| * | * | D | * | * | * |||   ", 10
-		db	"\  ||-   -   -   -   -   -   -||  /", 10
-		db	" | ||| O | * | * | D | * | * ||| | ", 10
-		db	"/  ||-   -   -   -   -   -   -||  \", 10
-		db	" @ ||| * | * | D | * | * | * ||| @ ", 10
-pfield_end_3	db	"   -----------------------------   ", 10
-		db	"   DOWN:%d   FIELD:%d%d%c  YARDS:%d%d    ", 10
-		db	"                                   ", 10
-		db	"   Movement: %c=UP    %c=LEFT        ", 10
-		db	"             %c=DOWN  %c=RIGHT       ", 10
-		db	"       Kick: %c (only on 4th down)  ", 10
-		db	"       Quit: %c                     ", 10
-		db	"                                   ", 10
-		db	"   Hit Enter after each play       ", 10
-		db	"   Hit %c to toggle debug display   ", 10
+		db	"    %c HOME: %d%d   %c VISITOR: %d%d                      ", 10
+		db	"   -----------------------------                    ", 10
+		db	"   || QUARTER: %d | TIME: %d%d.%d ||                    ", 10
+pfield_begin_3	db	"   -----------------------------                    ", 10
+		db	"   ||| * | * | D | * | * | * |||                    ", 10
+		db	"\  ||-   -   -   -   -   -   -||  /                 ", 10
+		db	" | ||| O | * | * | D | * | * ||| |                  ", 10
+		db	"/  ||-   -   -   -   -   -   -||  \                 ", 10
+		db	" @ ||| * | * | D | * | * | * ||| @                  ", 10
+pfield_end_3	db	"   -----------------------------                    ", 10
+		db	"   DOWN:%d   FIELD:%d%d%c  YARDS:%d%d                     ", 10
+		db	"                                                    ", 10
+		db	"   Movement: %c=UP    %c=LEFT                         ", 10
+		db	"             %c=DOWN  %c=RIGHT                        ", 10
+		db	"       Kick: %c (only on 4th down)                   ", 10
+		db	"       Quit: %c                                      ", 10
+		db	"                                                    ", 10
+		db	"   Hit Enter after each play                        ", 10
+		db	"   Hit %c to toggle debug display                    ", 10
 		db	10
 		db	0
 
