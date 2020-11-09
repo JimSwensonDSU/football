@@ -2077,7 +2077,7 @@ segment .data
 
 debugpos	db	0x1b, "[000B", 0	; populated by init_field()
 
-playposstr	db	" %d,%d", 0
+playposstr	db	" %d,%d", 0x1b, "[0J", 0
 
 debugstr	db	10
 		db	"                                                    ", 10
