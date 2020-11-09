@@ -120,11 +120,11 @@
 
 segment .data
 
-	msg_touchdown		db	"!!! TOUCHDOWN !!!!", 0
-	msg_fieldgoalgood	db	"!!! FIELD GOAL !!!!", 0
-	msg_fieldgoalmiss	db	"FIELD GOAL MISSED", 0
-	msg_tackle		db	"TACKLED", 0
-	msg_punt		db	"PUNTED", 0
+	msg_touchdown		db	"!!! TOUCHDOWN !!!", 0
+	msg_fieldgoalgood	db	"!!! FIELD GOAL !!!", 0
+	msg_fieldgoalmiss	db	"*** FIELD GOAL MISSED ***", 0
+	msg_tackle		db	"*** TACKLED ***", 0
+	msg_punt		db	"*** PUNTED ***", 0
 	msg_fumble		db	"!!! FUMBLED !!!", 0
 	msg_gameover		db	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
 	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER, MAN!", 0
@@ -1508,27 +1508,15 @@ switch_team:
 ; Draw a splash screen with given message s.
 ; Will center the message.
 ;
-%define	MAX_S_LEN	31
 segment .data
 
-splashstr	db	10
-		db	10
-		db	10
-		db	10
-		db	10
-                db      "   ---------------------------------------------    ", 10
-                db      "   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-                db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-                db      "\  ||-   -                               -   -||  / ", 10
-                db      " | |||   |               *               |   ||| |  ", 10
-                db      "/  ||-   -                               -   -||  \ ", 10
-                db      "   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-                db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   |||   |   |   |   |   |   |   |   |   |   |||    ", 10
-                db      "   ---------------------------------------------    ", 10
-		db	10, 10, 10, 10, 10, 10, 10, 10, 10
-		db	0
+; populated by init_field()
+splashpos	db	0x1b, "[000B", 0x1b, "[000C", 0
+splashlen	dd	0
+
+; We print one character at a time
+splashfmt	db	"%c", 0
+
 drawsplash:
 	enter	12, 0
 
@@ -1538,57 +1526,77 @@ drawsplash:
 	; [ebp + 8] : s
 	;
 	; Local vars:
-	; [ebp - 4]  : Location of the * in the splashstr
-	; [ebp - 8]  : Length of s / 2
+	; [ebp - 4]  : Leading spaces to print to center s
+	; [ebp - 8]  : Trailing spaces to print to center s
 	; [ebp - 12] : Length of s
 
-	; Find address of the center of the message line (search for *)
-	mov	edi, splashstr
-	mov	ecx, 0FFFFFFFFh
-	mov	al, '*'
-	cld
-	repnz	scasb
-	dec	edi
-
-	; edi points to the * in splashstr
-	mov	DWORD [ebp - 4], edi
 
 	; Calculate length of s
 	mov	edi, [ebp + 8]
-	mov	ecx, MAX_S_LEN+1
+	mov	ecx, DWORD [splashlen]	; limit to splashlen characters
+	inc	ecx
 	xor	al, al
 	cld
 	repnz	scasb
-	mov	edx, MAX_S_LEN
+	mov	edx, DWORD [splashlen]
 	sub	edx, ecx	; edx = length of s
 	mov	DWORD [ebp - 12], edx
-	mov	ecx, edx
-	shr	ecx, 1		; ecx = length of s / 2
+
+	; Calculate leading spaces needed to center s
+	mov	ecx, DWORD [splashlen]
+	sub	ecx, edx
+	shr	ecx, 1
+	mov	DWORD [ebp - 4], ecx
+
+	; Calculate trailing spaces needed to center s
+	mov	ecx, DWORD [splashlen]
+	sub	ecx, DWORD [ebp - 12]
+	sub	ecx, DWORD [ebp - 4]
 	mov	DWORD [ebp - 8], ecx
 
-	; Copy s into the splashstr
+	; Position the cursor
+	call homecursor
+	push splashpos
+	call printf
+	add esp, 4
+
+	; Print leading spaces
+	splash_print_leading:
+		cmp	DWORD [ebp - 4], 0
+		je	splash_print_leading_end
+		push	' '
+		push	splashfmt
+		call	printf
+		add	esp, 8
+		dec	DWORD [ebp - 4]
+		jmp	splash_print_leading
+	splash_print_leading_end:
+
+	; Print s
 	mov	esi, [ebp + 8]
-	mov	edi, [ebp - 4]
-	sub	edi, [ebp - 8]
-	mov	ecx, edx
-	cld
-	rep	movsb
+	splash_print_s:
+		cmp	DWORD [ebp - 12], 0
+		je	splash_print_s_end
+		push	DWORD [esi]
+		push	splashfmt
+		call	printf
+		add	esp, 8
+		dec	DWORD [ebp - 12]
+		inc	esi
+		jmp	splash_print_s
+	splash_print_s_end:
 
-	; print the splash screen
-	call	homecursor
-	push	splashstr
-	call	printf
-	add	esp, 4
-
-	; restore splashstr
-	mov	edi, DWORD [ebp - 4]
-	sub	edi, DWORD [ebp - 8]
-	mov	ecx, DWORD [ebp - 12]
-	mov	al, ' '
-	cld
-	rep	stosb
-	mov	edi, DWORD [ebp - 4]
-	mov	BYTE [edi], '*'
+	; Print trailing spaces
+	splash_print_trailing:
+		cmp	DWORD [ebp - 8], 0
+		je	splash_print_trailing_end
+		push	' '
+		push	splashfmt
+		call	printf
+		add	esp, 8
+		dec	DWORD [ebp - 8]
+		jmp	splash_print_trailing
+	splash_print_trailing_end:
 
 	popa
 
@@ -1625,8 +1633,9 @@ segment .data
 ; of player positions.  The init_field() function attempts
 ; to enforce this.
 ;
-; The corresponding layout for splashstr in drawsplash should
-; match the layout of the playing field.
+; The @ markers indicate the location of the splash message.
+; The first pair of @s are used for this and subsequently
+; replaced with a space in the boardstr. 
 ;
 boardstr	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
@@ -1638,7 +1647,7 @@ playfield_begin db      "   ---------------------------------------------    ", 
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
                 db      "\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
-                db      " | ||| O | * | * | D | * | * | D | * | D | * ||| |  ", 10
+                db      " | ||| O |@* | * | D | * | * | D | * | D@| * ||| |  ", 10
                 db      "/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
                 db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
@@ -1780,10 +1789,10 @@ drawboard:
 	; visitor score : 2 digits
 	xor	edx, edx
 	mov	eax, DWORD [visitorscore]
-        mov     ecx, SCORE_ROLLOVER
-        div     ecx
-        mov     eax, edx
-        xor     edx, edx
+	mov	ecx, SCORE_ROLLOVER
+	div	ecx
+	mov	eax, edx
+	xor	edx, edx
 	div	ebx
 	push	edx
 	push	eax
@@ -1800,10 +1809,10 @@ drawboard:
 	push_home_score:
 	xor	edx, edx
 	mov	eax, DWORD [homescore]
-        mov     ecx, SCORE_ROLLOVER
-        div     ecx
-        mov     eax, edx
-        xor     edx, edx
+	mov	ecx, SCORE_ROLLOVER
+	div	ecx
+	mov	eax, edx
+	xor	edx, edx
 	div	ebx
 	push	edx
 	push	eax
@@ -1969,6 +1978,8 @@ drawdebug:
 ;         8 - field_width = 0
 ;         9 - playpos_num != field_length * field_width
 ;        10 - too many player positions on a field row
+;        11 - missing @ splash markers in boardstr
+;        12 - missing @ splash markers in boardstr
 ;
 init_field:
 	enter	12, 0
@@ -1977,6 +1988,7 @@ init_field:
 	; [ebp - 4]  : set to 1 when we have a player position on the current line
 	; [ebp - 8]  : column
 
+	push	ebx
 	push	ecx
 	push	edx
 	push	esi
@@ -1985,7 +1997,7 @@ init_field:
 	;
 	; Count # of newlines in boardstr and populate debugcurpos.
 	;
-	mov	eax, 0
+	mov	eax, 0	; count of newlines
 	mov	esi, boardstr
 	dec	esi
 	debugcurpos_loop:
@@ -1996,18 +2008,105 @@ init_field:
 		jne	debugcurpos_loop
 		inc	eax
 		jmp	debugcurpos_loop
+
 	debugcurpos_end:
 
 	mov	ecx, 10
 	xor	edx, edx
 	div	ecx
-	add	BYTE [debugcurpos+4], dl
+	add	BYTE [debugcurpos+4], dl	; 1s digit
 	xor	edx, edx
 	div	ecx
-	add	BYTE [debugcurpos+3], dl
+	add	BYTE [debugcurpos+3], dl	; 10s digit
 	xor	edx, edx
 	div	ecx
-	add	BYTE [debugcurpos+2], dl
+	add	BYTE [debugcurpos+2], dl	; 100s digit
+
+
+
+	;
+	; Find the @ markers in boardstr and populate splashpos
+	;
+
+	; Search for the first @ in boardstr
+	mov	eax, 0	; count of newlines
+	mov	ebx, -1	; offset from start of a line
+	mov	esi, boardstr
+	dec	esi
+	splashpos_loop1:
+		inc	esi
+		inc	ebx
+		cmp	BYTE [esi], 0
+		je	splashpos_fail1
+		cmp	BYTE [esi], '@'
+		je	splashpos_start
+		cmp	BYTE [esi], 10
+		jne	splashpos_loop1
+		inc	eax
+		mov	ebx, -1
+		jmp splashpos_loop1
+
+	; If we get here, no '@' found.  Error
+	splashpos_fail1:
+		mov	eax, 11
+		jmp	leave_init_field
+
+	; Found the first @.  Populate splashpos
+	splashpos_start:
+
+	; row
+	mov	ecx, 10
+	xor	edx, edx
+	div	ecx
+	add	BYTE [splashpos+4], dl	; 1s digit
+	xor	edx, edx
+	div	ecx
+	add	BYTE [splashpos+3], dl	; 10s digit
+	xor	edx, edx
+	div	ecx
+	add	BYTE [splashpos+2], dl	; 100s digit
+
+	; column
+	mov	eax, ebx
+	mov	ecx, 10
+	xor	edx, edx
+	div	ecx
+	add	BYTE [splashpos+10], dl	; 1s digit
+	xor	edx, edx
+	div	ecx
+	add	BYTE [splashpos+9], dl	; 10s digit
+	xor	edx, edx
+	div	ecx
+	add	BYTE [splashpos+8], dl	; 100s digit
+
+	; save esi in edi (location of the first @)
+	mov	BYTE [esi], ' '	; blank out the @ in the boardstr
+	mov	edi, esi
+		cmp	BYTE [esi], 0
+		je	splashpos_fail2
+
+	; Search for the second @ in boardstr
+	splashpos_loop2:
+		inc	esi
+		cmp	BYTE [esi], 0
+		je	splashpos_fail2
+		cmp	BYTE [esi], '@'
+		je	splashpos_end
+		jmp	splashpos_loop2
+
+	; If we get here, no second '@' found.  Error
+	splashpos_fail2:
+		mov	eax, 12
+		jmp	leave_init_field
+
+	; Found the second @.  Populate splashlen
+	splashpos_end:
+		mov	BYTE [esi], ' '	; black out the @ in the boardstr
+		mov	eax, esi
+		sub	eax, edi
+		inc	eax
+		mov	DWORD [splashlen], eax
+
 
 
 	mov	esi, playfield_begin
@@ -2162,6 +2261,7 @@ init_field:
 	pop	esi
 	pop	edx
 	pop	ecx
+	pop	ebx
 
 	leave
 	ret
