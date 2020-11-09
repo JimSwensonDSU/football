@@ -1656,7 +1656,10 @@ field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0
 ; By providing a sufficient and consistent right padding, the
 ; display will "self recover" ok on window resizes.  As well,
 ; padding to at least the width of the debug info is desired.
-; See boardstr_3, for example.
+; See boardstr_3, for example.  It is suggested that you first
+; layout the board without any % included for the format
+; specifiers in order to get the spacing right, then go back
+; and add the % in.
 ;
 ;
 ; PLAYER POSITION LAYOUT
@@ -1805,7 +1808,7 @@ pfield_end_1	db      "   ---------------------------------------------    ", 10
 boarddesc_2	db	"Field Dimensions: 7x15, Number of Defense: 11", 0
 boardstr_2	db	"                                                                        ", 10
 		db	"                      %c HOME: %d%d   %c VISITOR: %d%d                       ", 10
-		db	"                                                    ", 10
+		db	"                                                                        ", 10
 		db	"   --------------                                     --------------    ", 10
 		db	"   | QUARTER: %d |                                     | TIME: %d%d.%d |    ", 10
 pfield_begin_2	db      "   -----------------------------------------------------------------    ", 10
