@@ -1868,18 +1868,21 @@ debugstr	db	10
 		db	"                                                    ", 10
 		db	"   State Variables       Hit 0 - 5 to change skill: ", 10
 		db	" -------------------                                ", 10
-		db	"          tackle: %d      0 - sarcastaball          ", 10
-		db	"          fumble: %d      3 - challenging           ", 10
-		db	"     playrunning: %d      5 - hurt me plenty        ", 10
-		db	"      gamepaused: %d                                ", 10
+		db	"      gamepaused: %d      0 - Sarcastaball          ", 10
+		db	"     playrunning: %d      1 - Flag football         ", 10
+		db	"          tackle: %d      2 - Pee Wee league        ", 10
+		db	"          fumble: %d      3 - Semi-pro              ", 10
+		db	"      skilllevel: %d      4 - NFL                   ", 10
+		db	"                         5 - Bo Jackson level      ", 10
+		db	"                                                    ", 10
 		db	"        fieldpos: %d                                ", 10
 		db	" lineofscrimmage: %d                                ", 10
 		db	"      possession: %d                                ", 10
 		db	"       direction: %d                                ", 10
-		db	"      skilllevel: %d                                ", 10
 		db	"    field_length: %d                                ", 10
 		db	"     field_width: %d                                ", 10
 		db	"     defense_num: %d                                ", 10
+		db	"       splashlen: %d                                ", 10
 		db	0
 drawdebug:
 	enter	0, 0
@@ -1927,22 +1930,23 @@ drawdebug:
 	;
 	; state info
 	;
+	push	DWORD [splashlen]
 	push	DWORD [defense_num]
 	push	DWORD [field_width]
 	push	DWORD [field_length]
-	push	DWORD [skilllevel]
 	push	DWORD [direction]
 	push	DWORD [possession]
 	push	DWORD [lineofscrimmage]
 	push	DWORD [fieldpos]
-	push	DWORD [gamepaused]
-	push	DWORD [playrunning]
+	push	DWORD [skilllevel]
 	push	DWORD [fumble]
 	push	DWORD [tackle]
+	push	DWORD [playrunning]
+	push	DWORD [gamepaused]
 
 	push	debugstr
 	call	printf
-	add	esp, 52
+	add	esp, 56
 
 
 	leave_drawdebug:
