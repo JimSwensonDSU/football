@@ -1770,7 +1770,7 @@ pfield_end_0	db	"   ---------------------------------------------    ", 10
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
 		db	"     Hit %c to toggle debug display                  ", 10
-		db	10
+		db	"                                                     ", 10
 		db	0
 
 
@@ -1801,7 +1801,7 @@ pfield_end_1	db      "   ---------------------------------------------    ", 10
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
 		db	"     Hit %c to toggle debug display                  ", 10
-		db	10
+		db	"                                                     ", 10
 		db	0
 
 
@@ -1836,7 +1836,7 @@ pfield_end_2	db      "   -------------------------------------------------------
 		db	"                                                                        ", 10
 		db	"     Hit Enter after each play                                          ", 10
 		db	"     Hit %c to toggle debug display                                      ", 10
-		db	10
+		db	"                                                                        ", 10
 		db	0
 
 
@@ -1861,7 +1861,7 @@ pfield_end_3	db	"   -----------------------------                    ", 10
 		db	"                                                    ", 10
 		db	"   Hit Enter after each play                        ", 10
 		db	"   Hit %c to toggle debug display                    ", 10
-		db	10
+		db	"                                                    ", 10
 		db	0
 
 drawboard:
