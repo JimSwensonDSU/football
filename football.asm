@@ -2259,6 +2259,8 @@ drawdebug:
 	call	printf
 	add	esp, 64
 
+	call	clear_to_endofscreen
+
 
 	leave_drawdebug:
 
