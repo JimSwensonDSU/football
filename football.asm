@@ -2148,7 +2148,7 @@ segment .data
 
 debugpos	db	0x1b, "[000B", 0	; populated by init_field()
 
-playposstr	db	" %d,%d", 0x1b, "[0K", 0
+playposstr	db	" %d,%d", 0
 
 debugstr	db	10
 		db	"                                                    ", 10
@@ -2214,6 +2214,8 @@ drawdebug:
 		add	esp, 12
 		pop	ecx	; restore ecx
 		loop	show_defense_pos
+
+	call	clear_to_endofline
 
 	;
 	; state info
@@ -2711,6 +2713,28 @@ clear_to_endofscreen:
 	enter	0, 0
 
 	push	clearendstr
+	call	printf
+	add	esp, 4
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void clear_to_endofline()
+;
+; Clear from the cursor to the end of the line
+;
+segment .data
+
+	clearendlinestr	db	0x1b, "[0K", 0
+
+clear_to_endofline:
+	enter	0, 0
+
+	push	clearendlinestr
 	call	printf
 	add	esp, 4
 
