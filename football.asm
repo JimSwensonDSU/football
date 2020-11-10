@@ -1741,6 +1741,12 @@ drawsplash:
 		jmp	splash_print_trailing
 	splash_print_trailing_end:
 
+	; Needed with libc printf:
+	push	10
+	push	splashfmt
+	call	printf
+	add	esp, 8
+
 	popa
 
 	leave
@@ -2929,7 +2935,7 @@ clearscreen:
 ;
 segment .data
 
-	clearendstr	db	0x1b, "[0J", 0
+	clearendstr	db	0x1b, "[0J", 10, 0	; newline is needed for libc printf
 
 clear_to_endofscreen:
 	enter	0, 0
