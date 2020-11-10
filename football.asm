@@ -258,119 +258,110 @@ run_game:
 	; [ebp - 4]  : Saved value of eax
 	; [ebp - 8]  : board_num - field chosen
 	; [ebp - 12] : Address of boardstr_buff on the stack
+	; [ebp - 16] : initialize_all parameter for init_game()
 	; [ebp -  ?] : boardstr_buff.  Space needed is calculated
-
-	sub	esp, 12
 
 	; Save original value of eax
 	mov	DWORD [ebp - 4], eax	 ; saved eax
 
+
 	call	hidecursor
 	call	terminal_raw_mode
 
-	; Prompt user to choose field
-	call	choose_field
-	cmp	eax, -1
-	je	run_game_leave
-	mov	DWORD [ebp - 8], eax	; field chosen
+	mov	DWORD [ebp - 16], 1	 ; initialize_all = 1
 
-	; Determine how much to reserve on stack for boardstr
-	push	DWORD [ebp - 8]	; field chosen
-	call	field_size	; eax = bytes needed for boardstr
-	add	esp, 4
+	outer_loop:
+		lea	esp, [ebp - 16]
 
-	sub	esp, eax	; reserves space for boardstr buffer
-	mov	DWORD [ebp - 12], esp
+		; Prompt user to choose field
+		call	choose_field
+		cmp	eax, -1
+		je	run_game_leave
+		mov	DWORD [ebp - 8], eax	; field chosen
 
-	; We have our local variables set now
-	; Call init_field()
-	push	DWORD [ebp - 12]	; boardstr_buff
-	push	DWORD [ebp - 8]		; board_num
-	call	init_field
-	add	esp, 8
-	cmp	eax, 0
-	je	run_game_continue_init
-
-	; init_field() failed
-	push	eax
-	push	init_field_failure_fmt
-	call	printf
-	add	esp, 8
-	jmp	run_game_leave
-
-
-	run_game_continue_init:
-		call	init_game
-		call	clearscreen
-
-	gameloop:
-		call	drawboard
-
-		cmp	DWORD [abort], 1
-		je	run_game_abort
-
-		cmp	DWORD [hardquit], 1
-		je	run_game_done
-
-		cmp	DWORD [gameover], 1
-		je	end_game
-
-		push	TICK
-		call	usleep
+		; Determine how much to reserve on stack for boardstr
+		push	DWORD [ebp - 8]	; field chosen
+		call	field_size	; eax = bytes needed for boardstr
 		add	esp, 4
 
-		call	process_input
+		sub	esp, eax	; reserves space for boardstr buffer
+		mov	DWORD [ebp - 12], esp
 
-		call	move_defense
+		; We have our local variables set now
+		; Call init_field()
+		push	DWORD [ebp - 12]	; boardstr_buff
+		push	DWORD [ebp - 8]		; board_num
+		call	init_field
+		add	esp, 8
+		cmp	eax, 0
+		je	run_game_continue_init
 
-		call	decrement_timeremaining
+		; init_field() failed
+		push	eax
+		push	init_field_failure_fmt
+		call	printf
+		add	esp, 8
+		jmp	run_game_leave
 
-		call	update_game_state
 
-		jmp	gameloop
+		run_game_continue_init:
+			push	DWORD [ebp - 16]	; initialize_all
+			call	init_game
+			add	esp, 4
+			mov	DWORD [ebp - 16], 0	; initialize_all = 0
+			call	clearscreen
+
+		gameloop:
+			call	drawboard
+
+			cmp	DWORD [abort], 1
+			je	run_game_abort
+
+			cmp	DWORD [hardquit], 1
+			je	run_game_leave
+
+			cmp	DWORD [gameover], 1
+			je	end_game
+
+			push	TICK
+			call	usleep
+			add	esp, 4
+
+			call	process_input
+
+			call	move_defense
+
+			call	decrement_timeremaining
+
+			call	update_game_state
+
+			jmp	gameloop
 
 
-	end_game:
-		push	msg_gameover
-		call	drawsplash
-		add	esp, 4
-		call	wait_for_enter
+		end_game:
+			push	msg_gameover
+			call	drawsplash
+			add	esp, 4
+			call	wait_for_enter
 
-		cmp	DWORD [hardquit], 1
-		je	run_game_done
+			cmp	DWORD [abort], 1
+			je	run_game_abort
 
-		; initialize a new game.  Carry over these settings:
-		;
-		; - color_on
-		; - skilllevel
-		; - debug_on
+			cmp	DWORD [hardquit], 1
+			je	run_game_leave
 
-		push	DWORD [color_on]
-		push	DWORD [skilllevel]
-		push	DWORD [debug_on]
-		call	init_game
-		pop	eax
-		mov	DWORD [debug_on], eax
-		pop	eax
-		mov	DWORD [skilllevel], eax
-		pop	eax
-		mov	DWORD [color_on], eax
-		jmp	gameloop
+			jmp	outer_loop
 
 
 	run_game_abort:
 		push	msg_abort
 		call	drawsplash
 		add	esp, 4
-
-
-	run_game_done:
-	call	drawdebug
+		call	drawdebug
 
 	run_game_leave:
-
-	call	terminal_restore_mode
-	call	showcursor
+		call	terminal_restore_mode
+		call	showcursor
 
 	; restore original value of eax
 	mov	eax, DWORD [ebp - 4]
@@ -383,12 +374,18 @@ run_game:
 
 ;------------------------------------------------------------------------------
 ;
-; void init_game()
+; void init_game(int initialize_all)
+;
+; initialize_all - 1 = yes, 0 = no
+;                  Allows us to carry over some setting from game to game.
 ;
 ; Initialize all settings for a new game.
 ;
 init_game:
 	enter	0, 0
+
+	; Arguments:
+	; [ebp + 8] : initialize_all
 
 	mov	DWORD [abort], 0
 	mov	DWORD [hardquit], 0
@@ -412,14 +409,17 @@ init_game:
 	mov	DWORD [direction], 1
 	mov	DWORD [possession], 1
 
-	mov	DWORD [skilllevel], 0
-	mov	DWORD [color_on], 1
-
 	mov	DWORD [timer_counter], TIMER_COUNTER
 	call	reset_defense_counter
 
+	; skilllevel, color_on, and debug_on are carried over
+	cmp	DWORD [ebp + 8], 1	; initialize_all
+	jne	init_game_leave
+	mov	DWORD [skilllevel], 0
+	mov	DWORD [color_on], 1
 	mov	DWORD [debug_on], 0
 
+	init_game_leave:
 	call	init_player_positions
 
 	leave
