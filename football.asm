@@ -125,8 +125,15 @@
 %define	KEY_QUIT	'Q'	; uppercase to avoid accidential hits
 %define	KEY_ENTER	0x0a
 %define	KEY_DEBUG	'v'	; toggle debug mode
+%define	KEY_COLOR	'c'	; toggle color mode
 %define KEY_CTRLC	0x03
 
+; splash message coloring indicators
+%define	SPLASH_GOOD	'G'
+%define	SPLASH_BAD	'B'
+%define	SPLASH_NEUTRAL	'N'
+
+; counters
 %define TICK		100000	; 1/10th of a second
 %define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
 %define DEFENSE_COUNTER	16	; Number of ticks between moving defense
@@ -134,14 +141,21 @@
 
 segment .data
 
-	msg_touchdown		db	"!!! TOUCHDOWN !!!", 0
-	msg_fieldgoalgood	db	"!!! FIELD GOAL !!!", 0
-	msg_fieldgoalmiss	db	"*** FIELD GOAL MISSED ***", 0
-	msg_tackle		db	"*** TACKLED ***", 0
-	msg_punt		db	"*** PUNTED ***", 0
-	msg_fumble		db	"!!! FUMBLED !!!", 0
-	msg_gameover		db	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
-	msg_abort		db	"CAUGHT CTRL-C.  GAME OVER", 0
+	; Splash message colors: foreground, background
+	splash_good		db	0x1b, "[92m", 0x1b, "[40m", 0	; light green, black
+	splash_bad		db	0x1b, "[97m", 0x1b, "[41m", 0	; white, red
+	splash_neutral		db	0x1b, "[97m", 0x1b, "[44m", 0	; white, blue
+	splash_reset		db	0x1b, "[39m", 0x1b, "[49m", 0	; default, default
+
+	; Splash messages - first char is the coloring indicator
+	msg_touchdown		db	SPLASH_GOOD,	"!!! TOUCHDOWN !!!", 0
+	msg_fieldgoalgood	db	SPLASH_GOOD,	"!!! FIELD GOAL !!!", 0
+	msg_fieldgoalmiss	db	SPLASH_BAD,	"*** FIELD GOAL MISSED ***", 0
+	msg_tackle		db	SPLASH_NEUTRAL,	"*** TACKLED ***", 0
+	msg_punt		db	SPLASH_NEUTRAL,	"*** PUNTED ***", 0
+	msg_fumble		db	SPLASH_BAD,	"!!! FUMBLED !!!", 0
+	msg_gameover		db	SPLASH_NEUTRAL,	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
+	msg_abort		db			"CAUGHT CTRL-C.  GAME OVER", 0
 
 	init_field_failure_fmt	db	"init_field() failed with return %d", 10, 0
 
@@ -166,6 +180,7 @@ segment .bss
 	direction	resd	1	; 1 = right, -1 = left
 	possession	resd	1	; 1 = home, -1 = visitor
 	skilllevel	resd	1	; skill level, 0-5.  0 = easy, 5 = hard
+	color_on	resd	1	; 1 = on, 0 = off
 
 	gamepaused	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
@@ -288,9 +303,11 @@ run_game:
 
 		; initialize a new game.  Carry over these settings:
 		;
+		; - color_on
 		; - skilllevel
 		; - debug_on
 
+		push	DWORD [color_on]
 		push	DWORD [skilllevel]
 		push	DWORD [debug_on]
 		call	init_game
@@ -298,6 +315,8 @@ run_game:
 		mov	DWORD [debug_on], eax
 		pop	eax
 		mov	DWORD [skilllevel], eax
+		pop	eax
+		mov	DWORD [color_on], eax
 		jmp	gameloop
 
 
@@ -354,6 +373,7 @@ init_game:
 	mov	DWORD [possession], 1
 
 	mov	DWORD [skilllevel], 0
+	mov	DWORD [color_on], 0
 
 	mov	DWORD [timer_counter], TIMER_COUNTER
 	call	reset_defense_counter
@@ -871,6 +891,7 @@ segment .data
 			dd	'4',		0,		check_skill_level,	0,	0
 			dd	'5',		0,		check_skill_level,	0,	0
 			dd	KEY_DEBUG,	0,		check_debug,		0,	0
+			dd	KEY_COLOR,	0,		check_color,		0,	0
 			dd	KEY_QUIT,	0,		check_quit,		0,	0
 			dd	KEY_CTRLC,	0,		check_ctrlc,		0,	0
 			dd	KEY_ENTER,	0,		check_enter,		0,	0
@@ -944,6 +965,17 @@ process_input:
 		mov	eax, 1
 		sub	eax, DWORD [debug_on]
 		mov	DWORD [debug_on], eax
+		call	drawdebug
+		jmp	leave_process_input
+
+
+	;
+	; Checking for color toggle
+	;
+	check_color:
+		mov	eax, 1
+		sub	eax, DWORD [color_on]
+		mov	DWORD [color_on], eax
 		call	drawdebug
 		jmp	leave_process_input
 
@@ -1549,11 +1581,19 @@ segment .data
 splashpos	db	0x1b, "[000B", 0x1b, "[000C", 0
 splashlen	dd	0
 
+; mapping from the splash color indicator to the on/off color escape sequences
+color_table	dd	SPLASH_GOOD,	splash_good,	splash_reset
+		dd	SPLASH_BAD,	splash_bad,	splash_reset
+		dd	SPLASH_NEUTRAL,	splash_neutral,	splash_reset
+		dd	0
+
+color_table_rec_size	dd	12
+
 ; We print one character at a time
 splashfmt	db	"%c", 0
 
 drawsplash:
-	enter	12, 0
+	enter	24, 0
 
 	pusha
 
@@ -1564,10 +1604,48 @@ drawsplash:
 	; [ebp - 4]  : Leading spaces to print to center s
 	; [ebp - 8]  : Trailing spaces to print to center s
 	; [ebp - 12] : Length of s
+	; [ebp - 16] : color indicator present
+	; [ebp - 20] : color on escape sequence
+	; [ebp - 24] : color off escape sequence
+
+
+	; Determine colors to use
+	;
+	; The first character of s is optionally used to indicate the color.
+	;
+	; If we find it in the color_table:
+	;   - set [ebp - 16] = 1
+	;   - we will skip the first char of s when using it.
+	;   - we will use the designated on/off color escape sequences.
+	;
+	; If we do not find it in the color table:
+	;   - set [ebp - 16] = 0
+	;   - we will use the full value of s.
+	;   - no on or off color escape sequences are used.
+	mov	DWORD [ebp - 16], 0
+	mov	edi, [ebp + 8]
+	mov	al, BYTE [edi]	; al = first char of s
+	mov	esi, color_table
+	sub	esi, DWORD [color_table_rec_size]
+	search_color_table:
+		add	esi, DWORD [color_table_rec_size]
+		cmp	DWORD [esi], 0
+		je	color_table_end
+		cmp	BYTE [esi], al
+		jne	search_color_table
+
+		; Found the color indicator
+		mov	DWORD [ebp - 16], 1
+		mov	eax, DWORD [esi + 4]
+		mov	DWORD [ebp - 20], eax
+		mov	eax, DWORD [esi + 8]
+		mov	DWORD [ebp - 24], eax
+	color_table_end:
 
 
 	; Calculate length of s
 	mov	edi, [ebp + 8]		; s
+	add	edi, DWORD [ebp - 16]	; 1 = color indicator present, otherwise 0
 	mov	ecx, DWORD [splashlen]	; \ limit to splashlen characters
 	inc	ecx			; /
 	xor	al, al
@@ -1607,8 +1685,24 @@ drawsplash:
 		jmp	splash_print_leading
 	splash_print_leading_end:
 
-	; Print s
+
 	mov	esi, DWORD [ebp + 8]
+	add	esi, DWORD [ebp - 16]	; 1 = color indicator present, otherwise 0
+
+
+	; Print the color "on" sequence?
+	cmp	DWORD [ebp - 16], 0
+	je	splash_print_s	; no color indicator in s
+
+	cmp	DWORD [color_on], 0
+	je	splash_print_s	; color is disabled
+
+	push	DWORD [ebp - 20]
+	call	printf
+	add	esp, 4
+
+
+	; Print s
 	splash_print_s:
 		cmp	DWORD [ebp - 12], 0
 		je	splash_print_s_end
@@ -1620,6 +1714,19 @@ drawsplash:
 		inc	esi
 		jmp	splash_print_s
 	splash_print_s_end:
+
+
+	; Print the color "off" sequence?
+	cmp	DWORD [ebp - 16], 0
+	je	splash_print_trailing	; no color indicator in s
+
+	cmp	DWORD [color_on], 0
+	je	splash_print_trailing	; color is disabled
+
+	push	DWORD [ebp - 24]
+	call	printf
+	add	esp, 4
+
 
 	; Print trailing spaces
 	splash_print_trailing:
@@ -2239,12 +2346,12 @@ debugstr	db	10
 		db	"          tackle: %d      2 - Pee Wee league        ", 10
 		db	"          fumble: %d      3 - Semi-pro              ", 10
 		db	"      skilllevel: %d      4 - NFL                   ", 10
-		db	"                         5 - Bo Jackson level      ", 10
+		db	"        color_on: %d      5 - Bo Jackson level      ", 10
 		db	"                                                    ", 10
 		db	"        fieldpos: %d%d    Jim Swenson                ", 10
 		db	" lineofscrimmage: %d%d    Jim.Swenson@trojans.dsu.edu", 10
 		db	"      possession: %d                                ", 10
-		db	"       direction: %d                                ", 10
+		db	"       direction: %d       Hit %c to toggle colors   ", 10
 		db	"    field_length: %d                                ", 10
 		db	"     field_width: %d                                ", 10
 		db	"     defense_num: %d                                ", 10
@@ -2305,6 +2412,7 @@ drawdebug:
 	push	DWORD [defense_num]
 	push	DWORD [field_width]
 	push	DWORD [field_length]
+	push	KEY_COLOR
 	push	DWORD [direction]
 	push	DWORD [possession]
 
@@ -2327,6 +2435,7 @@ drawdebug:
 	div	ecx
 	push	edx
 
+	push	DWORD [color_on]
 	push	DWORD [skilllevel]
 	push	DWORD [fumble]
 	push	DWORD [tackle]
@@ -2335,7 +2444,7 @@ drawdebug:
 
 	push	debugstr
 	call	printf
-	add	esp, 64
+	add	esp, 72
 
 	call	clear_to_endofscreen
 
