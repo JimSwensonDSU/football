@@ -2297,6 +2297,8 @@ drawboard:
 ; Displays the field options and prompts user to choose.
 ; Supports up to 10 choices.
 ;
+; If there is only 1 field, just uses it.
+;
 ; Return:  n - for a chosen option
 ;         -1 - No choice made (they hit quit or ctrl-c)
 ;
@@ -2313,6 +2315,22 @@ choose_field:
 
 	push	ebx
 	push	esi
+
+	; Count the number of fields.  If only 1, return it.
+	mov	eax, -1
+	mov	esi, field_options
+	choose_field_count:
+		cmp	DWORD [esi], 0
+		je	choose_field_count_end
+		inc	eax
+		add	esi, DWORD [field_option_rec_size]
+		jmp	choose_field_count
+	choose_field_count_end:
+
+	; If 0 or 1 fields, exit.
+	cmp	eax, 0
+	jle	choose_field_leave
+
 
 	call	clearscreen
 	call	homecursor
