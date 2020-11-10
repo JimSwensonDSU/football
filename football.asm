@@ -1696,7 +1696,7 @@ field_option_rec_size	dd	36
 ; PLAYER POSITION LAYOUT
 ;
 ; The actual playing field is marked with the labels
-; pfield_begin_N and pfield_end_N.  Within the playfied,
+; pfield_begin_N and pfield_end_N.  Within the playfield,
 ; each possible player position is marked with a character:
 ;
 ;      marker_off_N - Indicates the starting position for the offense.
