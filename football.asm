@@ -1824,8 +1824,6 @@ marker_char	db	0
 ;
 ; desc           - A description of the game board.
 ; boardstr       - The full board.
-; pfield_begin   - Within the board, the start of the playing field.
-; pfield_end     - Within the board, the start of the playing field.
 ; marker_off     - The character used to mark the offensive player.
 ; marker_def     - The character used to mark defensive players.
 ; marker_playpos - The character used to mark other valid player positions.
@@ -1834,10 +1832,10 @@ marker_char	db	0
 ; marker_digit   - The character used to designate a display digit.
 ; marker_char    - The character used to designate a display char.
 ;
-field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0, marker_digit_0, marker_char_0
-		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1, marker_digit_1, marker_char_1
-		dd	boarddesc_2, boardstr_2, pfield_begin_2, pfield_end_2, marker_off_2, marker_def_2, marker_playpos_2, marker_splash_2, splash_repl_2, marker_digit_2, marker_char_2
-		dd	boarddesc_3, boardstr_3, pfield_begin_3, pfield_end_3, marker_off_3, marker_def_3, marker_playpos_3, marker_splash_3, splash_repl_3, marker_digit_3, marker_char_3
+field_options	dd	boarddesc_0, boardstr_0, 0, 0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0, marker_digit_0, marker_char_0
+		dd	boarddesc_1, boardstr_1, 0, 0, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1, marker_digit_1, marker_char_1
+		dd	boarddesc_2, boardstr_2, 0, 0, marker_off_2, marker_def_2, marker_playpos_2, marker_splash_2, splash_repl_2, marker_digit_2, marker_char_2
+		dd	boarddesc_3, boardstr_3, 0, 0, marker_off_3, marker_def_3, marker_playpos_3, marker_splash_3, splash_repl_3, marker_digit_3, marker_char_3
 		dd	0
 
 field_option_rec_size	dd	44
@@ -1961,13 +1959,13 @@ boardstr_0	db	"                                                    ", 10
 		db	"                                                    ", 10
 		db	"   --------------                 --------------    ", 10
 		db	"   | QUARTER: # |                 | TIME: ##.# |    ", 10
-pfield_begin_0	db	"   ---------------------------------------------    ", 10
+		db	"   ---------------------------------------------    ", 10
 		db	"   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
 		db	" | |||$& | * | * | ! | * | ! | * | * | ! | *$||| |  ", 10
 		db	"/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
 		db	"   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
-pfield_end_0	db	"   ---------------------------------------------    ", 10
+		db	"   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |    ", 10
 		db	"   ---------------------------------------------    ", 10
@@ -1997,7 +1995,7 @@ boardstr_1	db	"                                                    ", 10
 		db	"                                                    ", 10
 		db	"   --------------                 --------------    ", 10
 		db	"   | QUARTER: # |                 | TIME: ##.# |    ", 10
-pfield_begin_1	db      "   ---------------------------------------------    ", 10
+		db      "   ---------------------------------------------    ", 10
                 db      "   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | ! | * | ! | * | * | * | * |||    ", 10
@@ -2007,7 +2005,7 @@ pfield_begin_1	db      "   ---------------------------------------------    ", 1
                 db      "   ||| * | * | * | ! | * | ! | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
-pfield_end_1	db      "   ---------------------------------------------    ", 10
+		db      "   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"   | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |    ", 10
 		db	"   ---------------------------------------------    ", 10
@@ -2037,7 +2035,7 @@ boardstr_2	db	"                                                                 
 		db	"                                                                        ", 10
 		db	"   --------------                                     --------------    ", 10
 		db	"   | QUARTER: # |                                     | TIME: ##.# |    ", 10
-pfield_begin_2	db      "   -----------------------------------------------------------------    ", 10
+		db      "   -----------------------------------------------------------------    ", 10
                 db      "   ||| * | * | * | ! | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | * | * | ! | * | * | * | * | * | * | * | * | * |||    ", 10
@@ -2051,7 +2049,7 @@ pfield_begin_2	db      "   -----------------------------------------------------
                 db      "   ||| * | * | * | * | * | ! | * | * | * | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | ! | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
-pfield_end_2	db      "   -----------------------------------------------------------------    ", 10
+		db      "   -----------------------------------------------------------------    ", 10
 		db	"             ---------------------------------------------              ", 10
 		db	"             | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |              ", 10
 		db	"             ---------------------------------------------              ", 10
@@ -2080,13 +2078,13 @@ boardstr_3	db	"                                                    ", 10
 		db	"    @ HOME: ##   @ VISITOR: ##                      ", 10
 		db	"   -----------------------------                    ", 10
 		db	"   || QUARTER: # | TIME: ##.# ||                    ", 10
-pfield_begin_3	db	"   -----------------------------                    ", 10
+		db	"   -----------------------------                    ", 10
 		db	"   ||| * | * | ! | * | * | * |||                    ", 10
 		db	"\  ||-   -   -   -   -   -   -||  /  DOWN: #        ", 10
 		db	" | |$| & | * | * | ! | * | * |$| |  FIELD: ##@      ", 10
 		db	"/  ||-   -   -   -   -   -   -||  \ YARDS: ##       ", 10
 		db	"   ||| * | * | ! | * | * | * |||                    ", 10
-pfield_end_3	db	"   -----------------------------                    ", 10
+		db	"   -----------------------------                    ", 10
 		db	"                                                    ", 10
 		db	"   Movement: @=UP    @=LEFT                         ", 10
 		db	"             @=DOWN  @=RIGHT                        ", 10
