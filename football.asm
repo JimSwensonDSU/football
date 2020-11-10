@@ -170,6 +170,7 @@ segment .data
 
 	init_field_failure_fmt	db	"init_field() failed with return %d", 10, 0
 
+fmt db "Bytes %d", 10, 0
 segment .bss
 	; save terminal/stdin settings
 	save_termios		resb	60
@@ -2569,11 +2570,10 @@ field_size:
 	mov	eax, 0
 	dec	esi
 	field_size_loop:
+		inc	eax
 		inc	esi
 		cmp	BYTE [esi], 0
 		je	field_size_loop_end
-
-		inc	eax
 
 		field_size_check_digit_N:
 		cmp	BYTE [esi], dl
@@ -2586,9 +2586,7 @@ field_size:
 
 		inc	eax
 		jmp	field_size_loop
-	
 	field_size_loop_end:
-	inc	eax	; add 1 for the null
 
 	; round up to multiple of 4
 	add	eax, 3
@@ -2756,7 +2754,6 @@ init_field:
 
 	boardstr_copy_end:
 	; Null terminate
-	inc	edi
 	mov	BYTE [edi], 0
 
 
