@@ -1799,14 +1799,16 @@ space_repl	db	0
 ; marker_playpos - The character used to mark other valid player positions.
 ; marker_splash  - The character used to mark the splash message start/end.
 ; splace_repl    - The character to use to replace the splash markers.
+; marker_digit   - The character used to designate a display digit.
+; marker_char    - The character used to designate a display char.
 ;
-field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0
-		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1
-		dd	boarddesc_2, boardstr_2, pfield_begin_2, pfield_end_2, marker_off_2, marker_def_2, marker_playpos_2, marker_splash_2, splash_repl_2
-		dd	boarddesc_3, boardstr_3, pfield_begin_3, pfield_end_3, marker_off_3, marker_def_3, marker_playpos_3, marker_splash_3, splash_repl_3
+field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0, marker_digit_0, marker_char_0
+		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1, marker_digit_1, marker_char_1
+		dd	boarddesc_2, boardstr_2, pfield_begin_2, pfield_end_2, marker_off_2, marker_def_2, marker_playpos_2, marker_splash_2, splash_repl_2, marker_digit_2, marker_char_2
+		dd	boarddesc_3, boardstr_3, pfield_begin_3, pfield_end_3, marker_off_3, marker_def_3, marker_playpos_3, marker_splash_3, splash_repl_3, marker_digit_3, marker_char_3
 		dd	0
 
-field_option_rec_size	dd	36
+field_option_rec_size	dd	44
 
 ;
 ; boardstr_N definition
@@ -1817,10 +1819,6 @@ field_option_rec_size	dd	36
 ; By providing a sufficient and consistent right padding, the
 ; display will "self recover" ok on window resizes.  As well,
 ; padding to at least the width of the debug info is desired.
-;
-; It is suggested that you first layout the board without
-; any % included for the format specifiers in order to get
-; the spacing right, then go back and add the % in.
 ;
 ;
 ; PLAYFIELD SIZE
@@ -1871,8 +1869,13 @@ field_option_rec_size	dd	36
 ;
 ; FORMAT SPECIFIERS
 ;
-; As currently coded, the boardstr must provide specific format
-; specifiers in this exact order:
+; As currently coded, the boardstr must provide specific
+; format specifiers markers in this exact order, using
+; marker_digit_N for the %d single digits and marker_char_N
+; for the %c single chars.
+;
+; The marker_digit_N and marker_char_N cannot be used in the
+; boardstr except for this purpose.
 ;
 ;    home score:
 ;      %c - possession indicator
@@ -1925,8 +1928,10 @@ boarddesc_0	db	"Field Dimensions: 3x10, Number of Defense: 5", 0
 marker_off_0		db	'O'
 marker_def_0		db	'D'
 marker_playpos_0	db	'*'
-marker_splash_0		db	'@'
+marker_splash_0		db	'$'
 splash_repl_0		db	' '
+marker_digit_0		db	'#'
+marker_char_0		db	'@'
 
 boardstr_0	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
@@ -1936,7 +1941,7 @@ boardstr_0	db	"                                                    ", 10
 pfield_begin_0	db	"   ---------------------------------------------    ", 10
 		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
-		db	" | ||| O |@* | * | D | * | D | * | * | D@| * ||| |  ", 10
+		db	" | ||| O |$* | * | D | * | D | * | * | D$| * ||| |  ", 10
 		db	"/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
 		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
 pfield_end_0	db	"   ---------------------------------------------    ", 10
@@ -1959,8 +1964,10 @@ boarddesc_1	db	"Field Dimensions: 5x10, Number of Defense: 9", 0
 marker_off_1		db	'O'
 marker_def_1		db	'D'
 marker_playpos_1	db	'*'
-marker_splash_1		db	'@'
+marker_splash_1		db	'$'
 splash_repl_1		db	' '
+marker_digit_1		db	'#'
+marker_char_1		db	'@'
 
 boardstr_1	db	"                                                    ", 10
 		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
@@ -1972,7 +1979,7 @@ pfield_begin_1	db      "   ---------------------------------------------    ", 1
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
                 db      "\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
-                db      " | ||| O |@* | * | D | * | * | D | * | D@| * ||| |  ", 10
+                db      " | ||| O |$* | * | D | * | * | D | * | D$| * ||| |  ", 10
                 db      "/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
                 db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
@@ -1997,8 +2004,10 @@ boarddesc_2	db	"Field Dimensions: 7x15, Number of Defense: 11", 0
 marker_off_2		db	'O'
 marker_def_2		db	'D'
 marker_playpos_2	db	'*'
-marker_splash_2		db	'@'
+marker_splash_2		db	'$'
 splash_repl_2		db	' '
+marker_digit_2		db	'#'
+marker_char_2		db	'@'
 
 boardstr_2	db	"                                                                        ", 10
 		db	"                      %c HOME: %d%d   %c VISITOR: %d%d                       ", 10
@@ -2012,7 +2021,7 @@ pfield_begin_2	db      "   -----------------------------------------------------
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
                 db      "   ||| * | * | * | D | * | * | * | D | * | * | * | * | * | * | * |||    ", 10
                 db      "\  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  / ", 10
-                db      " | ||| O | * |@* | D | * | D | * | * | * | D | * | * | *@| * | * ||| |  ", 10
+                db      " | ||| O | * |$* | D | * | D | * | * | * | D | * | * | *$| * | * ||| |  ", 10
                 db      "/  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  \ ", 10
                 db      "   ||| * | * | * | D | * | * | * | D | * | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
@@ -2041,6 +2050,8 @@ marker_def_3		db	'!'
 marker_playpos_3	db	'^'
 marker_splash_3		db	'$'
 splash_repl_3		db	'|'
+marker_digit_3		db	'#'
+marker_char_3		db	'@'
 
 boardstr_3	db	"                                                    ", 10
 		db	"    %c HOME: %d%d   %c VISITOR: %d%d                      ", 10
