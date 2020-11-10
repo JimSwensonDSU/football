@@ -74,9 +74,6 @@
 ;
 ; Ideas for game improvements:
 ; - build a nicer looking intro page.
-; - rework the boardstr layout somehow so as to avoid
-;   interspersing printf format specifiers within the 
-;   string.
 ; - more use of colors
 ; - sound/beep
 ;
