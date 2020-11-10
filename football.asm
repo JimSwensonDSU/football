@@ -29,7 +29,8 @@
 ;     FUMBLE_PCT for chance of occurrence.
 ;
 ;   - Instead of sound, a splash screen is used to communicate
-;     game events.
+;     game events.  Colors can be turned on/off for the
+;     message display.
 ;
 ;   - No "ST"/"SC" keys needed as in remake/original.  Instead, all
 ;     pertinent game stats are always displayed.  Enter is used
@@ -67,7 +68,7 @@
 ; - rework the boardstr layout somehow so as to avoid
 ;   interspersing printf format specifiers within the 
 ;   string.
-; - color
+; - more use of colors
 ; - sound/beep
 ;
 
