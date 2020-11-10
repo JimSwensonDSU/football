@@ -374,7 +374,7 @@ init_game:
 	mov	DWORD [possession], 1
 
 	mov	DWORD [skilllevel], 0
-	mov	DWORD [color_on], 0
+	mov	DWORD [color_on], 1
 
 	mov	DWORD [timer_counter], TIMER_COUNTER
 	call	reset_defense_counter
