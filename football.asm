@@ -1832,13 +1832,13 @@ marker_char	db	0
 ; marker_digit   - The character used to designate a display digit.
 ; marker_char    - The character used to designate a display char.
 ;
-field_options	dd	boarddesc_0, boardstr_0, 0, 0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0, marker_digit_0, marker_char_0
-		dd	boarddesc_1, boardstr_1, 0, 0, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1, marker_digit_1, marker_char_1
-		dd	boarddesc_2, boardstr_2, 0, 0, marker_off_2, marker_def_2, marker_playpos_2, marker_splash_2, splash_repl_2, marker_digit_2, marker_char_2
-		dd	boarddesc_3, boardstr_3, 0, 0, marker_off_3, marker_def_3, marker_playpos_3, marker_splash_3, splash_repl_3, marker_digit_3, marker_char_3
+field_options	dd	boarddesc_0, boardstr_0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0, marker_digit_0, marker_char_0
+		dd	boarddesc_1, boardstr_1, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1, marker_digit_1, marker_char_1
+		dd	boarddesc_2, boardstr_2, marker_off_2, marker_def_2, marker_playpos_2, marker_splash_2, splash_repl_2, marker_digit_2, marker_char_2
+		dd	boarddesc_3, boardstr_3, marker_off_3, marker_def_3, marker_playpos_3, marker_splash_3, splash_repl_3, marker_digit_3, marker_char_3
 		dd	0
 
-field_option_rec_size	dd	44
+field_option_rec_size	dd	36
 
 ;
 ; boardstr_N definition
@@ -2543,11 +2543,11 @@ field_size:
 	lea	esi, [eax + 4]
 	mov	esi, DWORD [esi]	; esi -> boardstr_N
 
-	lea	edx, [eax + 36]
+	lea	edx, [eax + 28]
 	mov	edx, DWORD [edx]; edx -> marker_digit_N
 	mov	dl, BYTE [edx]	; dl = marker_digit_N
 
-	lea	ecx, [eax + 40]
+	lea	ecx, [eax + 32]
 	mov	ecx, DWORD [ecx]; ecx -> marker_char_N
 	mov	cl, BYTE [ecx]	; cl = marker_char_N
 
@@ -2669,36 +2669,30 @@ init_field:
 	mov	DWORD [boardstr], eax
 
 	mov	eax, DWORD [esi + 8]
-	mov	DWORD [playfield_begin], eax
-
-	mov	eax, DWORD [esi + 12]
-	mov	DWORD [playfield_end], eax
-
-	mov	eax, DWORD [esi + 16]
 	mov	al, BYTE [eax]
 	mov	BYTE [marker_off], al
 
-	mov	eax, DWORD [esi + 20]
+	mov	eax, DWORD [esi + 12]
 	mov	al, BYTE [eax]
 	mov	BYTE [marker_def], al
 
-	mov	eax, DWORD [esi + 24]
+	mov	eax, DWORD [esi + 16]
 	mov	al, BYTE [eax]
 	mov	BYTE [marker_playpos], al
 
-	mov	eax, DWORD [esi + 28]
+	mov	eax, DWORD [esi + 20]
 	mov	al, BYTE [eax]
 	mov	BYTE [marker_splash], al
 
-	mov	eax, DWORD [esi + 32]
+	mov	eax, DWORD [esi + 24]
 	mov	al, BYTE [eax]
 	mov	BYTE [space_repl], al
 
-	mov	eax, DWORD [esi + 36]
+	mov	eax, DWORD [esi + 28]
 	mov	al, BYTE [eax]
 	mov	BYTE [marker_digit], al
 
-	mov	eax, DWORD [esi + 40]
+	mov	eax, DWORD [esi + 32]
 	mov	al, BYTE [eax]
 	mov	BYTE [marker_char], al
 
