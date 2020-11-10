@@ -35,7 +35,7 @@
 ;     pertinent game stats are always displayed.  Enter is used
 ;     to enable the next play.
 ;
-;   - As in the original, initiating any movement will start
+;   - As in the original and remake, initiating any movement will start
 ;     the play.
 ;
 ;   - A debug screen is available to show various game variables.
@@ -45,21 +45,28 @@
 ; strings are supported.
 ;
 ; NOTE:
+;
 ; - Linux system calls are used for file open, close,
 ;   read, and write operations.
+;
 ; - libc functions are used for:
-;     sleeps: usleep
-;     STDIN settings: fcntl
+;          sleep delays: usleep
+;        STDIN settings: fcntl
 ;     terminal settings: tcsetattr, tcgetattr
+;
 ; - The screen refresh recovers reasonably well from
 ;   window resizes.  In some cases, hiding/showing the
 ;   debug info may be needed to clean up that area.  This
 ;   is a tradeoff between appearance and covering every
-;   resize use case.  Heavy handed clearing results in
+;   resize use case.  Frequent clearing results in
 ;   an undesirable screen flicker effect, so this is
 ;   avoided.
 ;
 ; Ideas for game improvements:
+; - build a nicer looking intro page.
+; - rework the boardstr layout somehow so as to avoid
+;   interspersing printf format specifiers within the 
+;   string.
 ; - color
 ; - sound/beep
 ;
@@ -179,9 +186,9 @@ segment .bss
 	field_width	resd	1	; determined playfield field width
 
 	; starting positions for offense and defense
-	offense_start	resd	2
+	offense_start	resd	2		; X, Y
 	offense_num	resd	1
-	defense_start	resd	2 * MAX_DEFENSE
+	defense_start	resd	2 * MAX_DEFENSE	; N sets of X, Y
 	defense_num	resd	1
 
 	; counters
@@ -193,19 +200,16 @@ segment .bss
 
 segment .text
 	global  main
-	extern	usleep
-	extern  fcntl, tcsetattr, tcgetattr
+	extern	usleep			; for sleep delays
+	extern	fcntl			; for STDIN settings
+	extern  tcsetattr, tcgetattr	; for terminal settings
 
 main:
 	push	ebp
 	mov		ebp, esp
 	; ********** CODE STARTS HERE **********
 
-	call	hidecursor
-	call	terminal_raw_mode
 	call	run_game
-	call	terminal_restore_mode
-	call	showcursor
 
 	; *********** CODE ENDS HERE ***********
 	mov		eax, 0
@@ -222,6 +226,9 @@ run_game:
 
 	push	eax
 
+	call	hidecursor
+	call	terminal_raw_mode
+
 	call	choose_field
 	cmp	eax, -1
 	je	run_game_leave
@@ -230,7 +237,7 @@ run_game:
 	call	init_field
 	add	esp, 4
 	cmp	eax, 0
-	je	continue_init
+	je	run_game_continue_init
 
 	push	eax
 	push	init_field_failure_fmt
@@ -239,7 +246,7 @@ run_game:
 	jmp	run_game_leave
 
 
-	continue_init:
+	run_game_continue_init:
 		call	init_game
 		call	clearscreen
 
@@ -304,6 +311,10 @@ run_game:
 	call	drawdebug
 
 	run_game_leave:
+
+	call	terminal_restore_mode
+	call	showcursor
+
 	pop	eax
 
 	leave
@@ -359,6 +370,8 @@ init_game:
 ;------------------------------------------------------------------------------
 ;
 ; void init_player_positions()
+;
+; Populates the offense and defense X,Y values based on direction
 ;
 init_player_positions:
 	enter	0, 0
@@ -426,7 +439,7 @@ decrement_timeremaining:
 	enter	0, 0
 
 	cmp	DWORD [playrunning], 0
-	je	leave_decrement_timeremaining
+	je	leave_decrement_timeremaining	; don't decrement unless play running
 
 	dec	DWORD [timer_counter]
 	jnz	leave_decrement_timeremaining
@@ -525,8 +538,9 @@ update_game_state:
 		; Update game state
 		;
 		; good - other team starts at FIELDPOS
-		; miss - other team starts at fieldpos
+		; miss - other team starts at 100-fieldpos
 		;
+		; setting values for the "good" scenario:
 		mov	DWORD [fieldpos], FIELDPOS
 		mov	DWORD [lineofscrimmage], FIELDPOS
 		mov	DWORD [down], 1
@@ -539,6 +553,7 @@ update_game_state:
 		jmp	state_end_of_quarter
 
 		; miss
+		; complement fieldpos and lineofscrimmage for the "bad" scenario:
 		mov	eax, 100
 		sub	eax, DWORD [fieldpos]
 		mov	DWORD [fieldpos], eax
@@ -748,9 +763,9 @@ update_game_state:
 			jmp	state_end_of_quarter
 	
 
-		; Placeholder for additional functionality ...
-		state_something_else:
-			jmp	state_end_of_quarter
+	; Placeholder for additional functionality ...
+	state_something_else:
+		jmp	state_end_of_quarter
 
 
 
@@ -841,7 +856,7 @@ segment .data
 	;          deltaX - change to offenseX (only needed for movement)
 	;          deltaY - change to offenseY (only needed for movement)
 	;
-	; Using DWORD for each for arithmetic.
+	; Using DWORD for ease of arithmetic.
 	;
 	;			key		ignore on pause	handler			deltaX	deltaY
 	;			---------	---------------	-----------------	------	------
@@ -884,6 +899,7 @@ process_input:
 	search_input_table:
 	mov	ebx, input_table
 	sub	ebx, DWORD [input_table_rec_size]
+
 	search_input_loop:
 		add	ebx, DWORD [input_table_rec_size]
 		cmp	DWORD [ebx], 0	; end of table
@@ -1552,8 +1568,8 @@ drawsplash:
 
 	; Calculate length of s
 	mov	edi, [ebp + 8]		; s
-	mov	ecx, DWORD [splashlen]	; limit to splashlen characters
-	inc	ecx
+	mov	ecx, DWORD [splashlen]	; \ limit to splashlen characters
+	inc	ecx			; /
 	xor	al, al
 	cld
 	repnz	scasb
@@ -1655,11 +1671,11 @@ space_repl	db	0
 ; boardstr       - The full board.
 ; pfield_begin   - Within the board, the start of the playing field.
 ; pfield_end     - Within the board, the start of the playing field.
-; marker_off     - Within the board, character used to mark the offensive player.
-; marker_def     - Within the board, character used to mark defensive players.
-; marker_playpos - WIthin the board, character used to mark other valid player positions.
-; marker_splash  - Within the board, character used to mark the splash message start/end.
-; splace_repl    - Character to use to replace the splash markers.
+; marker_off     - The character used to mark the offensive player.
+; marker_def     - The character used to mark defensive players.
+; marker_playpos - The character used to mark other valid player positions.
+; marker_splash  - The character used to mark the splash message start/end.
+; splace_repl    - The character to use to replace the splash markers.
 ;
 field_options	dd	boarddesc_0, boardstr_0, pfield_begin_0, pfield_end_0, marker_off_0, marker_def_0, marker_playpos_0, marker_splash_0, splash_repl_0
 		dd	boarddesc_1, boardstr_1, pfield_begin_1, pfield_end_1, marker_off_1, marker_def_1, marker_playpos_1, marker_splash_1, splash_repl_1
@@ -1672,7 +1688,7 @@ field_option_rec_size	dd	36
 ;
 ; boardstr_N definition
 ;
-; The strings contains the entire game display, with printf
+; The strings contain the entire game display, with printf
 ; format specifiers for various game stats and inputs, etc.
 ;
 ; By providing a sufficient and consistent right padding, the
@@ -1776,7 +1792,7 @@ field_option_rec_size	dd	36
 ;
 ;
 ; See the definition for boardstr_3 for an example
-; of the alternate types of layouts that are possible
+; of an alternate type of layout that is possible
 ; through the use of the different character definitions.
 ;
 
@@ -1989,7 +2005,7 @@ drawboard:
 	push	edx
 	push	eax
 
-	; field position : 2 digits and the side indicator
+	; field position : 2 digits and the direction indicator
 	xor	edx, edx
 	mov	eax, DWORD [fieldpos]
 	cmp	eax, 50
@@ -2260,6 +2276,7 @@ drawdebug:
 	;
 	; Player positions
 	;
+
 	; offense
 	push	DWORD [offense + 4]	; offenseY
 	push	DWORD [offense]		; offenseX
@@ -2338,9 +2355,9 @@ drawdebug:
 ;
 ; int init_field(int board_num)
 ;
-; board - which game board to use, as defined in the field_options array.
+; board_num - which game board to use, as defined in the field_options array.
 ;
-; Scans through the playfield to detemine all the field length,
+; Scans through the playfield to detemine the field length,
 ; field width, location of all player positions, starting location
 ; of offense, starting locations of all defense, and number of
 ; defense.
@@ -2360,12 +2377,12 @@ drawdebug:
 ;         8 - field_width = 0
 ;         9 - playpos_num != field_length * field_width
 ;        10 - too many player positions on a field row
-;        11 - missing splash markers in boardstr
-;        12 - missing splash markers in boardstr
+;        11 - missing first splash marker in boardstr
+;        12 - missing second splash marker in boardstr
 ;        13 - invalid board_num
 ;
 init_field:
-	enter	12, 0
+	enter	8, 0
 
 	; Arguments:
 	; [ebp + 8] : board_num
@@ -2975,7 +2992,7 @@ random:
 ;
 ; Reads STDIN for a single character input.
 ;
-; Return: read character on success.
+; Return: The read character on success.
 ;         otherwise, -1
 ;
 get_key:
