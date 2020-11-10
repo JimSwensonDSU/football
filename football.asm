@@ -114,6 +114,10 @@
 %define MAX_FIELD_WIDTH		9	; max number of player positions across the width of the field
 %define MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
 %define	MAX_DEFENSE		11	; max number of defenders
+%define	REQUIRED
+%define	BOARD_DIGITS_REQUIRED	13	; Number of marker_digit_N required
+%define	BOARD_CHARS_REQUIRED	10	; Number of marker_char_N required
+
 
 %define	SCORE_ROLLOVER	100	; display score%SCORE_ROLLOVER
 %define	TOUCHDOWN_PTS	7	; points for a touchdown
@@ -247,23 +251,47 @@ main:
 ; void run_game()
 ;
 run_game:
-	enter	0, 0
+	push	ebp
+	mov	ebp, esp
 
-	push	eax
+	; Local Variables:
+	; [ebp - 4]  : Saved value of eax
+	; [ebp - 8]  : board_num - field chosen
+	; [ebp - 12] : Address of boardstr_buff on the stack
+	; [ebp -  ?] : boardstr_buff.  Space needed is calculated
+
+	sub	esp, 12
+
+	; Save original value of eax
+	mov	DWORD [ebp - 4], eax	 ; saved eax
 
 	call	hidecursor
 	call	terminal_raw_mode
 
+	; Prompt user to choose field
 	call	choose_field
 	cmp	eax, -1
 	je	run_game_leave
+	mov	DWORD [ebp - 8], eax	; field chosen
 
-	push	eax
-	call	init_field
+	; Determine how much to reserve on stack for boardstr
+	push	DWORD [ebp - 8]	; field chosen
+	call	field_size	; eax = bytes needed for boardstr
 	add	esp, 4
+
+	sub	esp, eax	; reserves space for boardstr buffer
+	mov	DWORD [ebp - 12], esp
+
+	; We have our local variables set now
+	; Call init_field()
+	push	DWORD [ebp - 12]	; boardstr_buff
+	push	DWORD [ebp - 8]		; board_num
+	call	init_field
+	add	esp, 8
 	cmp	eax, 0
 	je	run_game_continue_init
 
+	; init_field() failed
 	push	eax
 	push	init_field_failure_fmt
 	call	printf
@@ -344,9 +372,11 @@ run_game:
 	call	terminal_restore_mode
 	call	showcursor
 
-	pop	eax
+	; restore original value of eax
+	mov	eax, DWORD [ebp - 4]
 
-	leave
+	mov	esp, ebp
+	pop	ebp
 	ret
 ;
 ;------------------------------------------------------------------------------
@@ -1782,6 +1812,8 @@ marker_def	db	0
 marker_playpos	db	0
 marker_splash	db	0
 space_repl	db	0
+marker_digit	db	0
+marker_char	db	0
 
 
 ;
@@ -1813,8 +1845,9 @@ field_option_rec_size	dd	44
 ;
 ; boardstr_N definition
 ;
-; The strings contain the entire game display, with printf
-; format specifiers for various game stats and inputs, etc.
+; The strings contain the entire game display, with markers
+; for the locations of players, various game stats,
+; input keys, etc.
 ;
 ; By providing a sufficient and consistent right padding, the
 ; display will "self recover" ok on window resizes.  As well,
@@ -1832,9 +1865,8 @@ field_option_rec_size	dd	44
 ;
 ; PLAYER POSITION LAYOUT
 ;
-; The actual playing field is marked with the labels
-; pfield_begin_N and pfield_end_N.  Within the playfield,
-; each possible player position is marked with a character:
+; Within the playfield, each possible player position is marked with
+; a character:
 ;
 ;      marker_off_N - Indicates the starting position for the offense.
 ;                     There may be only 1 offense position.
@@ -1843,10 +1875,9 @@ field_option_rec_size	dd	44
 ;
 ;  marker_playpos_N - Indicates other player positions.
 ;
-; NOTE: Any other use of these characters between pfield_begin_N
-;       and pfield_end_N will cause problems.  Setting these
-;       characters at a board specific level gives some
-;       flexibility then.
+; NOTE: Any other use of these characters within the boardstr
+;       will cause problems.  Setting these characters at a board
+;       specific level gives some flexibility then.
 ;
 ;
 ; SPLASH MESSAGE LOCATION
@@ -1859,74 +1890,66 @@ field_option_rec_size	dd	44
 ; The first pair of splash markers are used for this and subsequently
 ; replaced with a the splash_repl_N character in the boardstr. 
 ;
-; The splash markers must be located as follows:
-;
-;   - Between pfield_begin_N and pfield_end_N
-;
-;   - On a position that will look good as a splash_repl_N
-;     character during game play.
+; The splash markers may be located anywhere with in the boardstr.
+; It works best to keep the pair on the same line, and put
+; them on a line without marker_digit_N or marker_char_N markers.
 ;
 ;
 ; FORMAT SPECIFIERS
 ;
-; As currently coded, the boardstr must provide specific
+; As currently coded, the boardstr must provide the
 ; format specifiers markers in this exact order, using
 ; marker_digit_N for the %d single digits and marker_char_N
 ; for the %c single chars.
 ;
-; The marker_digit_N and marker_char_N cannot be used in the
-; boardstr except for this purpose.
+; The marker_digit_N and marker_char_N cannot be used anywhere
+; in the boardstr except for this purpose.
 ;
 ;    home score:
-;      %c - possession indicator
-;      %d - 10s digit
-;      %d - 1s digit
+;       char - possession indicator
+;      digit - 10s digit
+;      digit - 1s digit
 ;
 ;    visitor score:
-;      %c - possession indicator
-;      %d - 10s digit
-;      %d - 1s digit
+;       char - possession indicator
+;      digit - 10s digit
+;      digit - 1s digit
 ;
 ;    quarter:
-;      %d - 1 digit
+;      digit - 1 digit
 ;
 ;    time remaining:
-;      %d - 100s digit
-;      %d - 10s digit
-;      %d - 1s digit
+;      digit - 100s digit
+;      digit - 10s digit
+;      digit - 1s digit
 ;
 ;    down:
-;      %d - 1s digit
+;      digit - 1s digit
 ;
 ;    field position:
-;      %d - 10s digit
-;      %d - 1s digit
-;      %c - direction indicator
+;      digit - 10s digit
+;      digit - 1s digit
+;       char - direction indicator
 ;
 ;    yards to go:
-;      %d - 10s digit
-;      %d - 1s digit
+;      digit - 10s digit
+;      digit - 1s digit
 ;
 ;    keys
-;      %c - up
-;      %c - left
-;      %c - down
-;      %c - right
-;      %c - kick
-;      %c - quit
-;      %c - debug
-;
-;
-; See the definition for boardstr_3 for an example
-; of an alternate type of layout that is possible
-; through the use of the different character definitions.
+;       char - up
+;       char - left
+;       char - down
+;       char - right
+;       char - kick
+;       char - quit
+;       char - debug
 ;
 
 
 boarddesc_0	db	"Field Dimensions: 3x10, Number of Defense: 5", 0
 
-marker_off_0		db	'O'
-marker_def_0		db	'D'
+marker_off_0		db	'&'
+marker_def_0		db	'!'
 marker_playpos_0	db	'*'
 marker_splash_0		db	'$'
 splash_repl_0		db	' '
@@ -1934,35 +1957,35 @@ marker_digit_0		db	'#'
 marker_char_0		db	'@'
 
 boardstr_0	db	"                                                    ", 10
-		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+		db	"            @ HOME: ##   @ VISITOR: ##              ", 10
 		db	"                                                    ", 10
 		db	"   --------------                 --------------    ", 10
-		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
+		db	"   | QUARTER: # |                 | TIME: ##.# |    ", 10
 pfield_begin_0	db	"   ---------------------------------------------    ", 10
-		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
+		db	"   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
 		db	"\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
-		db	" | ||| O |$* | * | D | * | D | * | * | D$| * ||| |  ", 10
+		db	" | |||$& | * | * | ! | * | ! | * | * | ! | *$||| |  ", 10
 		db	"/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
-		db	"   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
+		db	"   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
 pfield_end_0	db	"   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
+		db	"   | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"                                                    ", 10
-		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT        ", 10
-		db	"         Kick: %c (only on 4th down)                 ", 10
-		db	"         Quit: %c                                    ", 10
+		db	"     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT        ", 10
+		db	"         Kick: @ (only on 4th down)                 ", 10
+		db	"         Quit: @                                    ", 10
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
-		db	"     Hit %c to toggle debug display                  ", 10
-		db	"                                                     ", 10
+		db	"     Hit @ to toggle debug display                  ", 10
+		db	"                                                    ", 10
 		db	0
 
 
 boarddesc_1	db	"Field Dimensions: 5x10, Number of Defense: 9", 0
 
-marker_off_1		db	'O'
-marker_def_1		db	'D'
+marker_off_1		db	'&'
+marker_def_1		db	'!'
 marker_playpos_1	db	'*'
 marker_splash_1		db	'$'
 splash_repl_1		db	' '
@@ -1970,39 +1993,39 @@ marker_digit_1		db	'#'
 marker_char_1		db	'@'
 
 boardstr_1	db	"                                                    ", 10
-		db	"            %c HOME: %d%d   %c VISITOR: %d%d              ", 10
+		db	"            @ HOME: ##   @ VISITOR: ##              ", 10
 		db	"                                                    ", 10
 		db	"   --------------                 --------------    ", 10
-		db	"   | QUARTER: %d |                 | TIME: %d%d.%d |    ", 10
+		db	"   | QUARTER: # |                 | TIME: ##.# |    ", 10
 pfield_begin_1	db      "   ---------------------------------------------    ", 10
-                db      "   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | ! | * | * | * | * |||    ", 10
                 db      "\  ||-   -   -   -   -   -   -   -   -   -   -||  / ", 10
-                db      " | ||| O |$* | * | D | * | * | D | * | D$| * ||| |  ", 10
+                db      " | ||| & |$* | * | ! | * | * | ! | * | !$| * ||| |  ", 10
                 db      "/  ||-   -   -   -   -   -   -   -   -   -   -||  \ ", 10
-                db      "   ||| * | * | * | D | * | D | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | ! | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   ||| * | * | * | D | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | * | * | * | * | * |||    ", 10
 pfield_end_1	db      "   ---------------------------------------------    ", 10
 		db	"   ---------------------------------------------    ", 10
-		db	"   | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |    ", 10
+		db	"   | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |    ", 10
 		db	"   ---------------------------------------------    ", 10
 		db	"                                                    ", 10
-		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT        ", 10
-		db	"         Kick: %c (only on 4th down)                 ", 10
-		db	"         Quit: %c                                    ", 10
+		db	"     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT        ", 10
+		db	"         Kick: @ (only on 4th down)                 ", 10
+		db	"         Quit: @                                    ", 10
 		db	"                                                    ", 10
 		db	"     Hit Enter after each play                      ", 10
-		db	"     Hit %c to toggle debug display                  ", 10
-		db	"                                                     ", 10
+		db	"     Hit @ to toggle debug display                  ", 10
+		db	"                                                    ", 10
 		db	0
 
 
 boarddesc_2	db	"Field Dimensions: 7x15, Number of Defense: 11", 0
 
-marker_off_2		db	'O'
-marker_def_2		db	'D'
+marker_off_2		db	'&'
+marker_def_2		db	'!'
 marker_playpos_2	db	'*'
 marker_splash_2		db	'$'
 splash_repl_2		db	' '
@@ -2010,35 +2033,35 @@ marker_digit_2		db	'#'
 marker_char_2		db	'@'
 
 boardstr_2	db	"                                                                        ", 10
-		db	"                      %c HOME: %d%d   %c VISITOR: %d%d                       ", 10
+		db	"                      @ HOME: ##   @ VISITOR: ##                        ", 10
 		db	"                                                                        ", 10
 		db	"   --------------                                     --------------    ", 10
-		db	"   | QUARTER: %d |                                     | TIME: %d%d.%d |    ", 10
+		db	"   | QUARTER: # |                                     | TIME: ##.# |    ", 10
 pfield_begin_2	db      "   -----------------------------------------------------------------    ", 10
-                db      "   ||| * | * | * | D | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   ||| * | * | * | * | * | D | * | * | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | * | * | ! | * | * | * | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   ||| * | * | * | D | * | * | * | D | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | * | * | ! | * | * | * | * | * | * | * |||    ", 10
                 db      "\  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  / ", 10
-                db      " | ||| O | * |$* | D | * | D | * | * | * | D | * | * | *$| * | * ||| |  ", 10
+                db      " | ||| & | * |$* | ! | * | ! | * | * | * | ! | * | * | *$| * | * ||| |  ", 10
                 db      "/  ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||  \ ", 10
-                db      "   ||| * | * | * | D | * | * | * | D | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | * | * | ! | * | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   ||| * | * | * | * | * | D | * | * | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | * | * | ! | * | * | * | * | * | * | * | * | * |||    ", 10
                 db      "   ||-   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -||    ", 10
-                db      "   ||| * | * | * | D | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
+                db      "   ||| * | * | * | ! | * | * | * | * | * | * | * | * | * | * | * |||    ", 10
 pfield_end_2	db      "   -----------------------------------------------------------------    ", 10
 		db	"             ---------------------------------------------              ", 10
-		db	"             | DOWN: %d | FIELDPOS: %d%d%c | YARDS TO GO: %d%d |              ", 10
+		db	"             | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |              ", 10
 		db	"             ---------------------------------------------              ", 10
 		db	"                                                                        ", 10
-		db	"     Movement: %c=UP  %c=LEFT  %c=DOWN  %c=RIGHT                            ", 10
-		db	"         Kick: %c (only on 4th down)                                     ", 10
-		db	"         Quit: %c                                                        ", 10
+		db	"     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT                            ", 10
+		db	"         Kick: @ (only on 4th down)                                     ", 10
+		db	"         Quit: @                                                        ", 10
 		db	"                                                                        ", 10
 		db	"     Hit Enter after each play                                          ", 10
-		db	"     Hit %c to toggle debug display                                      ", 10
+		db	"     Hit @ to toggle debug display                                      ", 10
 		db	"                                                                        ", 10
 		db	0
 
@@ -2047,31 +2070,31 @@ boarddesc_3	db	"Field Dimensions:  3x6, Number of Defense: 3", 0
 
 marker_off_3		db	'&'
 marker_def_3		db	'!'
-marker_playpos_3	db	'^'
+marker_playpos_3	db	'*'
 marker_splash_3		db	'$'
 splash_repl_3		db	'|'
 marker_digit_3		db	'#'
 marker_char_3		db	'@'
 
 boardstr_3	db	"                                                    ", 10
-		db	"    %c HOME: %d%d   %c VISITOR: %d%d                      ", 10
+		db	"    @ HOME: ##   @ VISITOR: ##                      ", 10
 		db	"   -----------------------------                    ", 10
-		db	"   || QUARTER: %d | TIME: %d%d.%d ||                    ", 10
+		db	"   || QUARTER: # | TIME: ##.# ||                    ", 10
 pfield_begin_3	db	"   -----------------------------                    ", 10
-		db	"   ||| ^ | ^ | ! | ^ | ^ | ^ |||                    ", 10
-		db	"\  ||-   -   -   -   -   -   -||  /  DOWN: %d        ", 10
-		db	" | |$| & | ^ | ^ | ! | ^ | ^ |$| |  FIELD: %d%d%c      ", 10
-		db	"/  ||-   -   -   -   -   -   -||  \ YARDS: %d%d       ", 10
-		db	"   ||| ^ | ^ | ! | ^ | ^ | ^ |||                    ", 10
+		db	"   ||| * | * | ! | * | * | * |||                    ", 10
+		db	"\  ||-   -   -   -   -   -   -||  /  DOWN: #        ", 10
+		db	" | |$| & | * | * | ! | * | * |$| |  FIELD: ##@      ", 10
+		db	"/  ||-   -   -   -   -   -   -||  \ YARDS: ##       ", 10
+		db	"   ||| * | * | ! | * | * | * |||                    ", 10
 pfield_end_3	db	"   -----------------------------                    ", 10
 		db	"                                                    ", 10
-		db	"   Movement: %c=UP    %c=LEFT                         ", 10
-		db	"             %c=DOWN  %c=RIGHT                        ", 10
-		db	"       Kick: %c (only on 4th down)                   ", 10
-		db	"       Quit: %c                                      ", 10
+		db	"   Movement: @=UP    @=LEFT                         ", 10
+		db	"             @=DOWN  @=RIGHT                        ", 10
+		db	"       Kick: @ (only on 4th down)                   ", 10
+		db	"       Quit: @                                      ", 10
 		db	"                                                    ", 10
 		db	"   Hit Enter after each play                        ", 10
-		db	"   Hit %c to toggle debug display                    ", 10
+		db	"   Hit @ to toggle debug display                    ", 10
 		db	"                                                    ", 10
 		db	0
 
@@ -2239,7 +2262,12 @@ drawboard:
 	call	homecursor
 	push	DWORD [boardstr]
 	call	printf
-	add	esp, 96
+
+	mov	eax, BOARD_DIGITS_REQUIRED	; each %d parameter
+	add	eax, BOARD_CHARS_REQUIRED	; each %c parameter
+	inc	eax				; boardstr parameter
+	shl	eax, 2				; * 4
+	add	esp, eax
 
 
 	; restore the boardstr
@@ -2488,12 +2516,93 @@ drawdebug:
 ;------------------------------------------------------------------------------
 
 ;------------------------------------------------------------------------------
+; int field_size(int board_num)
 ;
-; int init_field(int board_num)
+; Calculates and returns number of bytes needed for the chosen board.
+;
+; The value will be the size of boardstr_N (N = board_num) plus the ending
+; NULL plus one additional byte for each marker_digit_N and marker_char_N
+; found in boardstr_N.  Then the value is rounded up to a multiple of 4.
+;
+; Return: the number of bytes needed
+;
+field_size:
+	enter	0, 0
+
+	; Arguments
+	; [ebp + 8] : board_num
+
+	push	ebx
+	push	ecx
+	push	edx
+	push	esi
+
+	mov	eax, DWORD [ebp + 8]
+	mov	ebx, DWORD [field_option_rec_size]
+	mul	ebx
+	add	eax, field_options	; eax -> field_option for board_num
+
+	lea	esi, [eax + 4]
+	mov	esi, DWORD [esi]	; esi -> boardstr_N
+
+	lea	edx, [eax + 36]
+	mov	edx, DWORD [edx]; edx -> marker_digit_N
+	mov	dl, BYTE [edx]	; dl = marker_digit_N
+
+	lea	ecx, [eax + 40]
+	mov	ecx, DWORD [ecx]; ecx -> marker_char_N
+	mov	cl, BYTE [ecx]	; cl = marker_char_N
+
+	mov	eax, 0
+	dec	esi
+	field_size_loop:
+		inc	esi
+		cmp	BYTE [esi], 0
+		je	field_size_loop_end
+
+		inc	eax
+
+		field_size_check_digit_N:
+		cmp	BYTE [esi], dl
+		jne	field_size_check_char_N
+		inc	eax
+
+		field_size_check_char_N:
+		cmp	BYTE [esi], cl
+		jne	field_size_loop
+
+		inc	eax
+		jmp	field_size_loop
+	
+	field_size_loop_end:
+	inc	eax	; add 1 for the null
+
+	; round up to multiple of 4
+	add	eax, 3
+	shr	eax, 2
+	shl	eax, 2
+
+	pop	esi
+	pop	edx
+	pop	ecx
+	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int init_field(int board_num, char *boardstr_buff)
 ;
 ; board_num - which game board to use, as defined in the field_options array.
+; boardstr_buff - address of buffer to use for the boardstr
 ;
-; Scans through the playfield to detemine the field length,
+; First, copy from boardstr_N (N = board_num) to boardstr_buff, replacing
+; the marker_digit_N with %d and marker_char_N with %c.
+;
+; Then scans through the playfield to detemine the field length,
 ; field width, location of all player positions, starting location
 ; of offense, starting locations of all defense, and number of
 ; defense.
@@ -2516,16 +2625,24 @@ drawdebug:
 ;        11 - missing first splash marker in boardstr
 ;        12 - missing second splash marker in boardstr
 ;        13 - invalid board_num
+;        14 - No player positions found in boardstr
+;        15 - Did not find BOARD_DIGITS_REQUIRED many marker_digit_N markers
+;        16 - Did not find BOARD_CHARS_REQUIRED many marker_char_N markers
 ;
 init_field:
-	enter	8, 0
+	enter	24, 0
 
 	; Arguments:
-	; [ebp + 8] : board_num
+	; [ebp + 8]  : board_num
+	; [ebp + 12] : boardstr_buff
 
 	; Local Vars:
 	; [ebp - 4]  : set to 1 when we have a player position on the current line
 	; [ebp - 8]  : column
+	; [ebp - 12] : location of first player position in the boardstr
+	; [ebp - 16] : location of last player position in the boardstr
+	; [ebp - 20] ; # of marker_digit_N markers found in the boardstr
+	; [ebp - 24] ; # of marker_char_N markers found in the boardstr
 
 	push	ebx
 	push	ecx
@@ -2579,6 +2696,76 @@ init_field:
 	mov	al, BYTE [eax]
 	mov	BYTE [space_repl], al
 
+	mov	eax, DWORD [esi + 36]
+	mov	al, BYTE [eax]
+	mov	BYTE [marker_digit], al
+
+	mov	eax, DWORD [esi + 40]
+	mov	al, BYTE [eax]
+	mov	BYTE [marker_char], al
+
+
+
+	; Copy from boardstr_N (N = board_num) to boardstr_buff
+	; replacing marker_digit with %d and marker_char with %c
+	mov	esi, DWORD [boardstr]
+	mov	edi, DWORD [ebp + 12]	; boardstr_buff
+	mov	edx, DWORD [marker_digit]
+	mov	ecx, DWORD [marker_char]
+	dec	esi
+	dec	edi
+
+	mov	DWORD [ebp - 20], 0 ; # of marker_digit found
+	mov	DWORD [ebp - 24], 0 ; # of marker_char found
+
+	boardstr_copy:
+		inc	esi
+		inc	edi
+		cmp	BYTE [esi], 0
+		je	boardstr_copy_end
+
+		boardstr_copy_check_digit_N:
+		cmp	BYTE [esi], dl
+		jne	boardstr_copy_check_char_N
+		mov	BYTE [edi], '%'
+		inc	edi
+		mov	BYTE [edi], 'd'
+		inc	DWORD [ebp - 20]	; increment marker_digit count
+		jmp	boardstr_copy
+
+		boardstr_copy_check_char_N:
+		cmp	BYTE [esi], cl
+		jne	boardstr_copy_asis
+		mov	BYTE [edi], '%'
+		inc	edi
+		mov	BYTE [edi], 'c'
+		inc	DWORD [ebp - 24]	; increment marker_char count
+		jmp	boardstr_copy
+
+		boardstr_copy_asis:
+		mov	al, BYTE [esi]
+		mov	BYTE [edi], al
+		jmp	boardstr_copy
+
+	boardstr_copy_end:
+	; Null terminate
+	inc	edi
+	mov	BYTE [edi], 0
+
+
+	; Check that we found the required number of each marker
+	mov	eax, 15
+	cmp	DWORD DWORD [ebp - 20], BOARD_DIGITS_REQUIRED	; marker_digit count
+	jne	leave_init_field
+	mov	eax, 16
+	cmp	DWORD DWORD [ebp - 24], BOARD_CHARS_REQUIRED	; marker_char count
+	jne	leave_init_field
+
+
+	; boardstr_buff now has a copy of boardstr_N with printf format specifiers.
+	; Populate boardstr with boardstr_buff.
+	mov	eax, DWORD [ebp + 12]	; boardstr_buff
+	mov	DWORD [boardstr], eax
 
 
 	;
@@ -2604,12 +2791,15 @@ init_field:
 	mov	ecx, 10
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [debugpos+4], '0'
 	add	BYTE [debugpos+4], dl	; 1s digit
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [debugpos+3], '0'
 	add	BYTE [debugpos+3], dl	; 10s digit
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [debugpos+2], '0'
 	add	BYTE [debugpos+2], dl	; 100s digit
 
 
@@ -2655,12 +2845,15 @@ init_field:
 	mov	ecx, 10
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [splashpos+4], '0'
 	add	BYTE [splashpos+4], dl	; 1s digit
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [splashpos+3], '0'
 	add	BYTE [splashpos+3], dl	; 10s digit
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [splashpos+2], '0'
 	add	BYTE [splashpos+2], dl	; 100s digit
 
 	; column
@@ -2668,12 +2861,15 @@ init_field:
 	mov	ecx, 10
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [splashpos+10], '0'
 	add	BYTE [splashpos+10], dl	; 1s digit
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [splashpos+9], '0'
 	add	BYTE [splashpos+9], dl	; 10s digit
 	xor	edx, edx
 	div	ecx
+	mov	BYTE [splashpos+8], '0'
 	add	BYTE [splashpos+8], dl	; 100s digit
 
 	; save esi in edi (location of the first splash marker) and
@@ -2709,7 +2905,54 @@ init_field:
 
 
 
-	mov	esi, DWORD [playfield_begin]
+	; Find the first and the last player position in the boardstr
+	; by scanning for marker_off, marker_def, marker_playpos
+	;
+	; These will we used below for scanning the boardstr for
+	; each individual player position.
+	mov	DWORD [ebp - 12], -1
+	mov	DWORD [ebp - 16], -1
+	mov	esi, DWORD [boardstr]
+	dec	esi
+	find_players:
+		inc	esi
+		mov	cl, BYTE [esi]
+		cmp	cl, 0
+		je	find_players_end
+
+		find_players_check_marker_off:
+			cmp	cl, BYTE [marker_off]
+			je	find_players_found
+
+		find_players_check_marker_def:
+			cmp	cl, BYTE [marker_def]
+			je	find_players_found
+
+		find_players_check_marker_playpos:
+			cmp	cl, BYTE [marker_playpos]
+			je	find_players_found
+
+		jmp	find_players
+
+		find_players_found:
+			mov	DWORD [ebp - 16], esi	; last player found in boardstr
+			cmp	DWORD [ebp - 12], -1
+			jne	find_players
+			mov	DWORD [ebp - 12], esi	; first player found in boardstr
+			jmp	find_players
+
+	find_players_end:
+
+	; Check to make sure we populated first/last player found.
+	; If not, ERROR.
+	mov	eax, 14
+	cmp	DWORD [ebp - 12], -1
+	je	leave_init_field
+
+
+
+	mov	esi, DWORD [ebp - 12]	; location of the first player position
+	dec	esi
 	mov	DWORD [field_length], 0
 	mov	DWORD [field_width], 0
 	mov	DWORD [playpos_num], 0
@@ -2720,8 +2963,9 @@ init_field:
 
 	init_field_next:
 		inc	esi
-		cmp	esi, DWORD [playfield_end]
-		jge	init_field_done
+		mov	eax, DWORD [ebp - 16]	; location of last player position
+		cmp	esi, eax
+		jg	init_field_done
 
 		mov	cl, BYTE [esi]
 
@@ -2821,6 +3065,10 @@ init_field:
 
 
 	init_field_done:
+		; We stopped right after the last player position
+		; so increment field_width
+		inc	DWORD [field_width]
+
 		; Need to have 1 offense
 		mov	eax, 5
 		cmp	DWORD [offense_num], 1
