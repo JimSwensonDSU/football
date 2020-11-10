@@ -43,7 +43,16 @@
 ;
 ; This code also contains a local implementation of printf.
 ; See the comments in printf for details and which format
-; strings are supported.
+; strings are supported.  The code should work fine with the
+; libc printf.
+;
+; The functions in this code do save all registers used,
+; including the "caller-save" registers eax, ecx, and edx.
+;
+; https://stackoverflow.com/questions/34100466/why-is-the-value-of-edx-overwritten-when-making-call-to-printf
+;
+; The only exception would be when eax is used for a return value.
+;
 ;
 ; NOTE:
 ;
