@@ -82,23 +82,24 @@
 ; Values for system/library calls
 ;
 %define	SYS_read	0x03
-%define SYS_write	0x04
+%define	SYS_write	0x04
 %define	SYS_open	0x05
 %define	SYS_close	0x06
+%define	SYS_newstat	0x6a
 
-%define STDIN		0
-%define STDOUT		1
+%define	STDIN		0
+%define	STDOUT		1
 
 %define	O_RDONLY	0
-%define O_NONBLOCK	2048
+%define	O_NONBLOCK	2048
 
 %define	ECHO		8
 %define	ICANON		2
 %define	ISIG		1
 %define	TCSAFLUSH	2
 
-%define F_GETFL		3
-%define F_SETFL		4
+%define	F_GETFL		3
+%define	F_SETFL		4
 
 ;
 ; Game constants
@@ -108,8 +109,8 @@
 %define	POSSESSION_CHAR	'*'	; character for the possession indicator
 
 ; See boardstr for field layout and player positioning
-%define MAX_FIELD_WIDTH		9	; max number of player positions across the width of the field
-%define MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
+%define	MAX_FIELD_WIDTH		9	; max number of player positions across the width of the field
+%define	MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
 %define	MAX_DEFENSE		11	; max number of defenders
 %define	REQUIRED
 %define	BOARD_DIGITS_REQUIRED	13	; Number of marker_digit_N required
@@ -128,10 +129,10 @@
 %define	GAME_TIME	150	; length of a quarter
 
 ; input keys
-%define KEY_UP		'w'
-%define KEY_DOWN	's'
-%define KEY_LEFT	'a'
-%define KEY_RIGHT	'd'
+%define	KEY_UP		'w'
+%define	KEY_DOWN	's'
+%define	KEY_LEFT	'a'
+%define	KEY_RIGHT	'd'
 %define	KEY_KICK	'k'
 %define	KEY_QUIT	'Q'	; uppercase to avoid accidential hits
 %define	KEY_ENTER	0x0a
@@ -145,9 +146,9 @@
 %define	SPLASH_NEUTRAL	'N'
 
 ; counters
-%define TICK		100000	; 1/10th of a second
-%define TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
-%define DEFENSE_COUNTER	16	; Number of ticks between moving defense
+%define	TICK		100000	; 1/10th of a second
+%define	TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
+%define	DEFENSE_COUNTER	16	; Number of ticks between moving defense
 
 
 segment .data
@@ -170,12 +171,19 @@ segment .data
 
 	init_field_failure_fmt	db	"init_field() failed with return %d", 10, 0
 
-fmt db "Bytes %d", 10, 0
+	; for debugging
+	fmtu db "u = %u", 10, 0
+	fmtd db "d = %d", 10, 0
+	fmts db "s = %s", 10, 0
+
 segment .bss
 	; save terminal/stdin settings
 	save_termios		resb	60
 	save_c_lflag		resb	4
 	save_stdin_flags	resb	4
+
+	; for calling stat()
+	statbuf			resb	88
 
 	; game state
 	abort		resd	1
@@ -266,6 +274,9 @@ run_game:
 
 	sub	esp, 20
 
+	; Arguments:
+	; [ebp + 8] : boardfile
+
 	; Stack layout
 	;
 	; Local Variables:
@@ -283,15 +294,121 @@ run_game:
 
 	; Save registers
 	push	eax
+	push	ebx
+
 	mov	DWORD [ebp - 12], 0;	; boardfile
 	mov	DWORD [ebp - 16], 0;	; boardstr_buff
 	mov	DWORD [ebp - 20], esp	; save esp
+	mov	DWORD [ebp - 8], 1	; initialize_all = 1
 
-
-	mov	DWORD [ebp - 8], 1	 ; initialize_all = 1
 
 	call	hidecursor
 	call	terminal_raw_mode
+
+
+	;
+	; If boardfile provided, read it onto the stack
+	;
+	cmp	DWORD [ebp + 8], 0	; boardfile
+	je	outer_loop
+
+	; Get boardfile size
+	push	DWORD [ebp + 8]		; boardfile
+	call	filesize
+	add	esp, 4
+	cmp	eax, 0			; eax = size of boardfile in bytes
+	jle	outer_loop
+
+	; Add this amount to the stack, allowing for a NULL
+	; byte and rounding up to a multiple of 4
+	mov	ebx, eax
+	inc	ebx		; room for NULL byte
+	add	ebx, 3
+	shr	ebx, 2
+	shl	ebx, 2		; round up to multiple of 4
+	sub	esp, ebx
+	mov	DWORD [ebp - 12], esp	; boardfile_buff
+
+	; Read the boardfile in.  If failure, reset the stack
+	push	eax			; bytes_to_read
+	push	DWORD [ebp - 12]	; boardfile_buff
+	push	DWORD [ebp + 8]		; boardfile
+	call	load_boardfile		; load_boardfile will NULL terminate boardfile_buff
+	add	esp, 12
+	cmp	eax, 0			; eax = 0 is success
+	jne	no_boardfile
+
+	;
+	; We successfully read in the boardfile
+	;
+	; Rewrite the field_options table so that there is
+	; just one entry with:
+	;
+	;   boardstr       - boardfile_buff + 8
+	;   marker_off     - boardfile_buff + 0
+	;   marker_def     - boardfile_buff + 1
+	;   marker_playpos - boardfile_buff + 2
+	;   marker_splash  - boardfile_buff + 3
+	;   splace_repl    - boardfile_buff + 4
+	;   marker_digit   - boardfile_buff + 5
+	;   marker_char    - boardfile_buff + 6
+
+
+	; Set field_options to just 1 entry
+	mov	eax, field_options
+	add	eax, DWORD [field_option_rec_size]
+	mov	DWORD [eax], 0
+
+	; point ebx to the boardfile_buff
+	mov	ebx, DWORD [ebp - 12]	; boardfile_buff
+
+	mov	eax, field_options
+	; boardstr
+	add	eax, 4
+	mov	DWORD [eax], ebx
+	add	DWORD [eax], 8
+
+	; marker_off
+	add	eax, 4
+	mov	DWORD [eax], ebx
+
+	; marker_def
+	add	eax, 4
+	mov	DWORD [eax], ebx
+	add	DWORD [eax], 1
+
+	; marker_playpos
+	add	eax, 4
+	mov	DWORD [eax], ebx
+	add	DWORD [eax], 2
+
+	; marker_splash
+	add	eax, 4
+	mov	DWORD [eax], ebx
+	add	DWORD [eax], 3
+
+	; splash_repl
+	add	eax, 4
+	mov	DWORD [eax], ebx
+	add	DWORD [eax], 4
+
+	; marker_digit
+	add	eax, 4
+	mov	DWORD [eax], ebx
+	add	DWORD [eax], 5
+
+	; marker_char
+	add	eax, 4
+	mov	DWORD [eax], ebx
+	add	DWORD [eax], 6
+
+	jmp	outer_loop
+
+	; We were not able to read in the boardfile
+	no_boardfile:
+	mov	DWORD [ebp - 12], 0	; no boardfile_buff
+	mov	esp, [ebp - 20]		; reset the stack
+
 
 	outer_loop:
 		; "pop" boardstr_buff off the stack
@@ -393,6 +510,7 @@ run_game:
 
 	; restore registers
 	mov	esp, DWORD [ebp - 20]
+	pop	ebx
 	pop	eax
 
 	mov	esp, ebp
@@ -3434,6 +3552,120 @@ get_key:
 
 	mov	eax, DWORD [ebp - 4]
 	and	eax, 0x000000ff
+
+	pop	edx
+	pop	ecx
+	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int filesize(char *filename)
+;
+; Uses SYS_newstat to determine file size
+;
+; Return: size of file, or -1 for failure
+;
+filesize:
+	enter	4, 0
+
+	; Arguments:
+	; [ebp + 8] : filename
+
+	; Local Variables:
+	; [ebp - 4] : return value
+
+	mov	DWORD [ebp - 4], -1	; return value = -1
+
+
+        ; stat the file to get size
+        mov     eax, SYS_newstat
+        mov     ebx, DWORD [ebp + 8]
+        mov     ecx, statbuf
+        int     0x80
+
+	cmp	eax, 0
+	jne	filesize_leave
+
+	mov	eax, DWORD [statbuf + 20]
+	mov	DWORD [ebp - 4], eax	; return value = file size
+
+	filesize_leave:
+	mov	eax, DWORD [ebp - 4]	; return value
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int load_boardfile(filename, buf, n)
+;
+; Reads n many bytes from filename into buf
+; Adds a NULL at buf[n]
+;
+; Return: 0 - success, -1 - fail
+;
+load_boardfile:
+	enter	4, 0
+
+	push	ebx
+	push	ecx
+	push	edx
+
+	; Argument:
+	; [ebp + 8]  : filename
+	; [ebp + 12] : buf
+	; [ebp + 16] : n
+
+	; Local Variables:
+	; [ebp - 4] : return value
+
+	mov	DWORD [ebp - 4], -1	; return value = -1
+	mov	eax, DWORD [ebp + 12]	; eax = buf
+	add	eax, DWORD [ebp + 16]	; eax = buf[n]
+	mov	BYTE [eax], 0		; buf[n] = NULL
+
+	; Open file
+	mov	eax, SYS_open
+	mov	ebx, DWORD [ebp + 8]
+	mov	ecx, 0
+	mov	edx, O_RDONLY
+	int	0x80
+
+	; eax = file descriptor
+	; if eax < 0, error
+	cmp	eax, 0
+	jl	load_boardfile_leave
+
+	; Read n bytes
+	mov	ebx, eax
+	mov	eax, SYS_read
+	mov	ecx, DWORD [ebp + 12]	; buf
+	mov	edx, DWORD [ebp + 16]	; n
+	int	0x80
+
+	; eax = # bytes read.
+	cmp	eax, DWORD [ebp + 16]	; n
+	jne	load_boardfile_close
+
+	; success
+	mov	DWORD [ebp - 4], 0	; return value = 0
+
+	; Close the file
+	load_boardfile_close:
+	mov	eax, SYS_close
+	int	0x80
+
+
+
+	load_boardfile_leave:
+	mov	eax, DWORD [ebp - 4] ; return value
 
 	pop	edx
 	pop	ecx
