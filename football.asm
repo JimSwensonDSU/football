@@ -9,6 +9,13 @@
 ; https://www.handheldmuseum.com/Mattel/FB.htm
 ;
 ;
+; Usage: football [boardfile]
+;
+;        Where boardfile is an optional board layout to load in.
+;        Default is to use the boardstr_N definitions that are
+;        included in the source code.
+;
+;
 ; This implementation is based on the remake.
 ;
 ;   - Field length and width are set via the boardstr definition.

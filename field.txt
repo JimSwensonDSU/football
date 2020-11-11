@@ -20,10 +20,11 @@
 ; - The ";" must be in the first column.
 ; - Comment lines are not required.  They are included in this sample file
 ;   only for instructions.
+; - See the comments in football.asm for details on the boardstr layout.
 ;
 &!*$ #@
                                                     
-          Welcome to Electronic Football            
+           Welcome to Electronic Football           
                                                     
             @ HOME: ##   @ VISITOR: ##              
    --------------                 --------------    
