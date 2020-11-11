@@ -362,6 +362,22 @@ run_game:
 	; point ebx to the boardfile_buff
 	mov	ebx, DWORD [ebp - 12]	; boardfile_buff
 
+	; Move ebx forward to the first line (skipping over lines marked with a ;
+	skip_comments:
+		cmp	BYTE [ebx], ';'
+		jne	populate_field_options
+
+		; Move ebx to the newline
+		skip_comments_findnewline:
+			inc	ebx
+			cmp	BYTE [ebx], 10
+			jne	skip_comments_findnewline
+
+		inc	ebx
+		jmp	skip_comments
+
+
+	populate_field_options:
 	mov	eax, field_options
 	; boardstr
 	add	eax, 4
