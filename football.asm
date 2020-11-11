@@ -348,18 +348,6 @@ run_game:
 	;
 	; We successfully read in the boardfile
 	;
-	; Rewrite the field_options table so that there is
-	; just one entry with:
-	;
-	;   boardstr       - boardfile_buff + 8
-	;   marker_off     - boardfile_buff + 0
-	;   marker_def     - boardfile_buff + 1
-	;   marker_playpos - boardfile_buff + 2
-	;   marker_splash  - boardfile_buff + 3
-	;   splace_repl    - boardfile_buff + 4
-	;   marker_digit   - boardfile_buff + 5
-	;   marker_char    - boardfile_buff + 6
-
 
 	; Set field_options to just 1 entry
 	mov	eax, field_options
@@ -383,6 +371,18 @@ run_game:
 		inc	ebx
 		jmp	skip_comments
 
+
+	; Rewrite the field_options table so that there is
+	; just one entry with:
+	;
+	;   boardstr       - boardfile_buff + 8
+	;   marker_off     - boardfile_buff + 0
+	;   marker_def     - boardfile_buff + 1
+	;   marker_playpos - boardfile_buff + 2
+	;   marker_splash  - boardfile_buff + 3
+	;   splace_repl    - boardfile_buff + 4
+	;   marker_digit   - boardfile_buff + 5
+	;   marker_char    - boardfile_buff + 6
 
 	populate_field_options:
 	mov	eax, field_options
@@ -426,6 +426,7 @@ run_game:
 	add	DWORD [eax], 6
 
 	jmp	outer_loop
+
 
 	; We were not able to read in the boardfile
 	no_boardfile:
