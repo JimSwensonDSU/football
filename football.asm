@@ -3597,6 +3597,10 @@ get_key:
 filesize:
 	enter	4, 0
 
+	push	ebx
+	push	ecx
+	push	edx
+
 	; Arguments:
 	; [ebp + 8] : filename
 
@@ -3620,6 +3624,10 @@ filesize:
 
 	filesize_leave:
 	mov	eax, DWORD [ebp - 4]	; return value
+
+	pop	edx
+	pop	ecx
+	pop	ebx
 
 	leave
 	ret
