@@ -64,7 +64,7 @@
 ; NOTE:
 ;
 ; - Linux system calls are used for file open, close,
-;   read, and write operations.
+;   read, write, and stat operations.
 ;
 ; - libc functions are used for:
 ;          sleep delays: usleep
