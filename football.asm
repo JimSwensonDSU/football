@@ -236,7 +236,19 @@ main:
 	mov		ebp, esp
 	; ********** CODE STARTS HERE **********
 
+	;
+	; Pass argv[1] (boardfile) in to run_game
+	;
+	mov	eax, 0
+	cmp	DWORD [ebp + 8], 2	; argc
+	jl	invoke_game
+	mov	eax, DWORD [ebp + 12]	; argv
+	mov	eax, DWORD [eax + 4]	; argv[1]
+
+	invoke_game:
+	push	eax
 	call	run_game
+	add	esp, 4
 
 	; *********** CODE ENDS HERE ***********
 	mov		eax, 0
@@ -246,49 +258,67 @@ main:
 
 ;------------------------------------------------------------------------------
 ;
-; void run_game()
+; void run_game(char *boardfile)
 ;
 run_game:
 	push	ebp
 	mov	ebp, esp
 
+	sub	esp, 20
+
+	; Stack layout
+	;
 	; Local Variables:
-	; [ebp - 4]  : Saved value of eax
-	; [ebp - 8]  : board_num - field chosen
-	; [ebp - 12] : Address of boardstr_buff on the stack
-	; [ebp - 16] : initialize_all parameter for init_game()
-	; [ebp -  ?] : boardstr_buff.  Space needed is calculated
+	;    [ebp - 4]  : board_num - field chosen
+	;    [ebp - 8]  : initialize_all parameter for init_game()
+	;    [ebp - 12] : Address of boardfile contents on the stack (if provided)
+	;    [ebp - 16] : Address of boardstr_buff on the stack
+	;    [ebp - 20] : saved esp -
+	;                           |
+	; Saved registers           |
+	;                <-----------
+	; boardfile     : Space needed is calculated
+	;
+	; boardstr_buff : Space needed is calculated
 
-	; Save original value of eax
-	mov	DWORD [ebp - 4], eax	 ; saved eax
+	; Save registers
+	push	eax
+	mov	DWORD [ebp - 12], 0;	; boardfile
+	mov	DWORD [ebp - 16], 0;	; boardstr_buff
+	mov	DWORD [ebp - 20], esp	; save esp
 
+
+	mov	DWORD [ebp - 8], 1	 ; initialize_all = 1
 
 	call	hidecursor
 	call	terminal_raw_mode
 
-	mov	DWORD [ebp - 16], 1	 ; initialize_all = 1
-
 	outer_loop:
-		lea	esp, [ebp - 16]
+		; "pop" boardstr_buff off the stack
+		mov	esp, [ebp - 20]
+		cmp	DWORD [ebp - 12], 0
+		je	call_choose_field
+		mov	esp, DWORD [ebp - 12]
 
 		; Prompt user to choose field
+		call_choose_field:
 		call	choose_field
 		cmp	eax, -1
 		je	run_game_leave
-		mov	DWORD [ebp - 8], eax	; field chosen
+		mov	DWORD [ebp - 4], eax	; field chosen
 
 		; Determine how much to reserve on stack for boardstr
-		push	DWORD [ebp - 8]	; field chosen
+		push	DWORD [ebp - 4]	; field chosen
 		call	field_size	; eax = bytes needed for boardstr
 		add	esp, 4
 
 		sub	esp, eax	; reserves space for boardstr buffer
-		mov	DWORD [ebp - 12], esp
+		mov	DWORD [ebp - 16], esp
 
 		; We have our local variables set now
 		; Call init_field()
-		push	DWORD [ebp - 12]	; boardstr_buff
-		push	DWORD [ebp - 8]		; board_num
+		push	DWORD [ebp - 16]	; boardstr_buff
+		push	DWORD [ebp - 4]		; board_num
 		call	init_field
 		add	esp, 8
 		cmp	eax, 0
@@ -303,10 +333,10 @@ run_game:
 
 
 		run_game_continue_init:
-			push	DWORD [ebp - 16]	; initialize_all
+			push	DWORD [ebp - 8]	; initialize_all
 			call	init_game
 			add	esp, 4
-			mov	DWORD [ebp - 16], 0	; initialize_all = 0
+			mov	DWORD [ebp - 8], 0	; initialize_all = 0
 			call	clearscreen
 
 		gameloop:
@@ -361,8 +391,9 @@ run_game:
 		call	terminal_restore_mode
 		call	showcursor
 
-	; restore original value of eax
-	mov	eax, DWORD [ebp - 4]
+	; restore registers
+	mov	esp, DWORD [ebp - 20]
+	pop	eax
 
 	mov	esp, ebp
 	pop	ebp
