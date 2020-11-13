@@ -326,18 +326,18 @@ run_game:
 	cmp	eax, 0			; eax = size of boardfile in bytes
 	jle	outer_loop
 
-	; Add this amount to the stack, allowing for a NULL
+	; Reserve this amount to the stack, allowing for a NULL
 	; byte and rounding up to a multiple of 4
-	mov	ebx, eax
-	inc	ebx		; room for NULL byte
-	add	ebx, 3
-	shr	ebx, 2
-	shl	ebx, 2		; round up to multiple of 4
-	sub	esp, ebx
+	mov	ebx, eax	; save actual size in ebx
+	inc	eax		; room for NULL byte
+	push	eax
+	call	round_to_DWORD
+	add	esp, 4
+	sub	esp, eax		; room on the stack for NULL terminated contents of boardfile
 	mov	DWORD [ebp - 12], esp	; boardfile_buff
-
+	
 	; Read the boardfile in.  If failure, reset the stack
-	push	eax			; bytes_to_read
+	push	ebx			; bytes_to_read
 	push	DWORD [ebp - 12]	; boardfile_buff
 	push	DWORD [ebp + 8]		; boardfile
 	call	load_boardfile		; load_boardfile will NULL terminate boardfile_buff
@@ -2762,9 +2762,9 @@ field_size:
 	field_size_loop_end:
 
 	; round up to multiple of 4
-	add	eax, 3
-	shr	eax, 2
-	shl	eax, 2
+	push	eax
+	call	round_to_DWORD
+	add	esp, 4
 
 	pop	esi
 	pop	edx
@@ -3702,6 +3702,30 @@ load_boardfile:
 	pop	edx
 	pop	ecx
 	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int round_to_DWORD(int x)
+;
+; Rounds x up to a multiple of 4.
+;
+; Return: x rounded up to a multiple of 4.
+;
+round_to_DWORD:
+	enter	0, 0
+
+	; Arguments:
+	; [ebp + 8] : x
+
+	mov	eax, DWORD [ebp + 8]
+	add	eax, 3
+	shr	eax, 2
+	shl	eax, 2
 
 	leave
 	ret
