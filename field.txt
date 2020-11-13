@@ -6,7 +6,7 @@
 ;   marker_def     - The character used to mark defensive players.
 ;   marker_playpos - The character used to mark other valid player positions.
 ;   marker_splash  - The character used to mark the splash message start/end.
-;   splace_repl    - The character to use to replace the splash markers.
+;   splash_repl    - The character to use to replace the splash markers.
 ;   marker_digit   - The character used to designate a display digit.
 ;   marker_char    - The character used to designate a display char.
 ;   NEWLINE

@@ -348,83 +348,9 @@ run_game:
 	;
 	; We successfully read in the boardfile
 	;
-
-	; Set field_options to just 1 entry
-	mov	eax, field_options
-	add	eax, DWORD [field_option_rec_size]
-	mov	DWORD [eax], 0
-
-	; point ebx to the boardfile_buff
-	mov	ebx, DWORD [ebp - 12]	; boardfile_buff
-
-	; Move ebx forward to the first line (skipping over lines marked with a ;
-	skip_comments:
-		cmp	BYTE [ebx], ';'
-		jne	populate_field_options
-
-		; Move ebx to the newline
-		skip_comments_findnewline:
-			inc	ebx
-			cmp	BYTE [ebx], 10
-			jne	skip_comments_findnewline
-
-		inc	ebx
-		jmp	skip_comments
-
-
-	; Rewrite the field_options table so that there is
-	; just one entry with:
-	;
-	;   boardstr       - boardfile_buff + 8
-	;   marker_off     - boardfile_buff + 0
-	;   marker_def     - boardfile_buff + 1
-	;   marker_playpos - boardfile_buff + 2
-	;   marker_splash  - boardfile_buff + 3
-	;   splace_repl    - boardfile_buff + 4
-	;   marker_digit   - boardfile_buff + 5
-	;   marker_char    - boardfile_buff + 6
-
-	populate_field_options:
-	mov	eax, field_options
-	; boardstr
-	add	eax, 4
-	mov	DWORD [eax], ebx
-	add	DWORD [eax], 8
-
-	; marker_off
-	add	eax, 4
-	mov	DWORD [eax], ebx
-
-	; marker_def
-	add	eax, 4
-	mov	DWORD [eax], ebx
-	add	DWORD [eax], 1
-
-	; marker_playpos
-	add	eax, 4
-	mov	DWORD [eax], ebx
-	add	DWORD [eax], 2
-
-	; marker_splash
-	add	eax, 4
-	mov	DWORD [eax], ebx
-	add	DWORD [eax], 3
-
-	; splash_repl
-	add	eax, 4
-	mov	DWORD [eax], ebx
-	add	DWORD [eax], 4
-
-	; marker_digit
-	add	eax, 4
-	mov	DWORD [eax], ebx
-	add	DWORD [eax], 5
-
-	; marker_char
-	add	eax, 4
-	mov	DWORD [eax], ebx
-	add	DWORD [eax], 6
-
+	push	DWORD [ebp - 12]	; boardfile_buff
+	call	populate_field_options
+	add	esp, 4
 	jmp	outer_loop
 
 
@@ -1999,7 +1925,7 @@ marker_char	db	0
 ; marker_def     - The character used to mark defensive players.
 ; marker_playpos - The character used to mark other valid player positions.
 ; marker_splash  - The character used to mark the splash message start/end.
-; splace_repl    - The character to use to replace the splash markers.
+; splash_repl    - The character to use to replace the splash markers.
 ; marker_digit   - The character used to designate a display digit.
 ; marker_char    - The character used to designate a display char.
 ;
@@ -3702,6 +3628,121 @@ load_boardfile:
 	pop	edx
 	pop	ecx
 	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void populate_field_options(char *boardfile_buff)
+;
+; Populates the first entry of field_options with the values from
+; boardfile_buff and sets field_options to 1 entry.
+;
+populate_field_options:
+	enter	0, 0
+
+	; Arguments:
+	; [ebp + 8] : boardfile_buff
+
+	push	eax
+	push	ebx
+
+	; Set field_options to just 1 entry
+	mov	eax, field_options
+	add	eax, DWORD [field_option_rec_size]
+	mov	DWORD [eax], 0
+
+	; point ebx to the boardfile_buff
+	mov	ebx, DWORD [ebp + 8]	; boardfile_buff
+
+	; Move ebx forward to the first line (skipping over lines marked with a ;
+	skip_comments:
+		cmp	BYTE [ebx], ';'
+		jne	populate_field_options_entry0
+
+		; Move ebx to the newline
+		skip_comments_findnewline:
+			inc	ebx
+			cmp	BYTE [ebx], 10
+			jne	skip_comments_findnewline
+
+		inc	ebx
+		jmp	skip_comments
+
+
+	; Rewrite the field_options table so that there is
+	; just one entry with:
+	;
+	;   boardstr       - boardfile_buff + 8
+	;   marker_off     - boardfile_buff + 0
+	;   marker_def     - boardfile_buff + 1
+	;   marker_playpos - boardfile_buff + 2
+	;   marker_splash  - boardfile_buff + 3
+	;   splash_repl    - boardfile_buff + 4
+	;   marker_digit   - boardfile_buff + 5
+	;   marker_char    - boardfile_buff + 6
+	;
+	; The first 8 characters of the boardfile are required to be:
+	;
+	;   marker_off     - The character used to mark the offensive player.
+	;   marker_def     - The character used to mark defensive players.
+	;   marker_playpos - The character used to mark other valid player positions.
+	;   marker_splash  - The character used to mark the splash message start/end.
+	;   splash_repl    - The character to use to replace the splash markers.
+	;   marker_digit   - The character used to designate a display digit.
+	;   marker_char    - The character used to designate a display char.
+	;   NEWLINE
+	;
+	; Everything after that is considered to be the boardfile.
+	;
+	; Leading comment lines are skipped.
+
+	populate_field_options_entry0:
+	mov	eax, field_options
+	; boardstr
+	add	eax, 4			; eax = field_options + 4 = boardstr_0
+	mov	DWORD [eax], ebx	; ebx = boardfile_buff
+	add	DWORD [eax], 8		; boardstr_0 = boardfile_buff + 8
+
+	; marker_off
+	add	eax, 4			; eax = field_options + 8 = marker_off_0
+	mov	DWORD [eax], ebx	; marker_off_0 = boardfile_buff
+
+	; marker_def
+	add	eax, 4			; eax = field_options + 12 = marker_def_0
+	mov	DWORD [eax], ebx	; ebx = boardfile_buff
+	add	DWORD [eax], 1		; marker_def_0 = boardfile_buff + 1
+
+	; marker_playpos
+	add	eax, 4			; eax = field_options + 16 = marker_playpos_0
+	mov	DWORD [eax], ebx	; ebx = boardfile_buff
+	add	DWORD [eax], 2		; marker_playpos_0 = boardfile_buff + 2
+
+	; marker_splash
+	add	eax, 4			; eax = field_options + 20 = marker_splash_0
+	mov	DWORD [eax], ebx	; ebx = boardfile_buff
+	add	DWORD [eax], 3		; marker_splash_0 = boardfile_buff + 3
+
+	; splash_repl
+	add	eax, 4			; eax = field_options + 24 = splash_repl_0
+	mov	DWORD [eax], ebx	; ebx = boardfile_buff
+	add	DWORD [eax], 4		; space_repl_0 = boardfile_buff + 4
+
+	; marker_digit
+	add	eax, 4			; eax = field_options + 28 = marker_digit_0
+	mov	DWORD [eax], ebx	; ebx = boardfile_buff
+	add	DWORD [eax], 5		; marker_digit_0 = boardfile_buff + 5
+
+	; marker_char
+	add	eax, 4			; eax = field_options + 28 = marker_char_0
+	mov	DWORD [eax], ebx	; ebx = boardfile_buff
+	add	DWORD [eax], 6		; marker_char_0 = boardfile_buff + 6
+
+	pop	ebx
+	pop	eax
 
 	leave
 	ret
