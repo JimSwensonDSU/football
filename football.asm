@@ -3482,6 +3482,12 @@ random:
 ; Return: The read character on success.
 ;         otherwise, -1
 ;
+segment .data
+	arrows_map	db	65, KEY_UP
+			db	66, KEY_DOWN
+			db	67, KEY_RIGHT
+			db	68, KEY_LEFT
+			db	0
 get_key:
 	enter	4, 0
 
@@ -3503,6 +3509,32 @@ get_key:
 	mov	eax, DWORD [ebp - 4]
 	and	eax, 0x000000ff
 
+	;
+	; check for arrows
+	;
+	cmp	al, 0x1b	; ESC
+	jne	get_key_leave
+
+	call	get_key		; get the next char
+	cmp	al, '['
+	jne	get_key_leave
+
+	call	get_key		; get the next char
+	mov	ebx, arrows_map
+	sub	ebx, 2
+	get_key_search:
+		add	ebx, 2
+
+		cmp	BYTE [ebx], 0
+		je	get_key_leave	; end of arrows_map table
+
+		cmp	BYTE [ebx], al
+		jne	get_key_search	; move on to next table entry
+
+		mov	al, BYTE [ebx+1]; found a match
+
+
+	get_key_leave:
 	pop	edx
 	pop	ecx
 	pop	ebx
