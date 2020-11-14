@@ -1732,7 +1732,7 @@ splashfmt	db	"%c", 0
 drawsplash:
 	enter	24, 0
 
-	pusha
+	pushad
 
 	; Arguments:
 	; [ebp + 8] : s
@@ -1883,7 +1883,7 @@ drawsplash:
 	call	printf
 	add	esp, 8
 
-	popa
+	popad
 
 	leave
 	ret
@@ -4079,7 +4079,7 @@ printf:
 
 
 	pushf
-	pusha
+	pushad
 
 	mov	esi, ARG_FORMAT		; esi points to format string
 	dec	esi
@@ -4410,7 +4410,7 @@ printf:
 	int	0x80
 
 	printf_done:
-	popa
+	popad
 	popf
 
 	mov	esp, ebp
