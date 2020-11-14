@@ -2521,8 +2521,8 @@ debugstr	db	10
 		db	"      possession: %d                                ", 10
 		db	"       direction: %d       Hit %c to toggle colors   ", 10
 		db	"    field_length: %d                                ", 10
-		db	"     field_width: %d                                ", 10
-		db	"     defense_num: %d                                ", 10
+		db	"     field_width: %d       Arrows also work for     ", 10
+		db	"     defense_num: %d       movement.                ", 10
 		db	"       splashlen: %d                                ", 10
 		db	0
 drawdebug:
