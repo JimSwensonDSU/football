@@ -950,9 +950,7 @@ update_game_state:
 		;   - possession, fieldpos, lineofscrimmage, down, yardstogo remain same
 		;   - reset timeremaining
 		state_second_or_forth_quarter:
-			mov	eax, DWORD [direction]
-			neg	eax
-			mov	DWORD [direction], eax
+			call	switch_direction
 			mov	DWORD [timeremaining], GAME_TIME
 			mov	DWORD [timer_counter], TIMER_COUNTER
 			call	reset_defense_counter
@@ -1682,10 +1680,10 @@ score:
 
 ;------------------------------------------------------------------------------
 ;
-; void switch_team()
+; void switch_possession()
 ;
-; Inverts direction and possession
-switch_team:
+; Inverts possession
+switch_possession:
 	enter	0, 0
 
 	push	eax
@@ -1694,11 +1692,44 @@ switch_team:
 	neg	eax
 	mov	DWORD [possession], eax
 
+	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void switch_direction()
+;
+; Inverts direction
+switch_direction:
+	enter	0, 0
+
+	push	eax
+
 	mov	eax, DWORD [direction]
 	neg	eax
 	mov	DWORD [direction], eax
 
 	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; void switch_team()
+;
+; Switches direction and possession
+switch_team:
+	enter	0, 0
+
+	call	switch_possession
+	call	switch_direction
 
 	leave
 	ret
