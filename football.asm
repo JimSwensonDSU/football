@@ -1005,11 +1005,11 @@ segment .data
 	;
 	; Rows of the form:
 	;
-	;    key, handler, ignore on pause, deltaX, deltaY
+	;    key, ignore on pause, handler, deltaX, deltaY
 	;
 	;             key - key to press
-	;         handler - address for the handler code for that input
 	; ignore on pause - Ingore the key if gamepaused.  1 = ignore, 0 = don't ignore
+	;         handler - address for the handler code for that input
 	;          deltaX - change to offenseX (only needed for movement)
 	;          deltaY - change to offenseY (only needed for movement)
 	;
