@@ -80,7 +80,6 @@
 ;   avoided.
 ;
 ; Ideas for game improvements:
-; - build a nicer looking intro page.
 ; - more use of colors
 ; - sound/beep
 ;
