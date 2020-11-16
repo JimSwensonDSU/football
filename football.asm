@@ -122,6 +122,7 @@
 %define	BOARD_DIGITS_REQUIRED	13	; Number of marker_digit_N required
 %define	BOARD_CHARS_REQUIRED	10	; Number of marker_char_N required
 
+%define	DEFAULT_SKILL_LEVEL	3
 
 %define	SCORE_ROLLOVER	100	; display score%SCORE_ROLLOVER
 %define	TOUCHDOWN_PTS	7	; points for a touchdown
@@ -513,7 +514,7 @@ init_game:
 	; skilllevel, color_on, and debug_on are carried over
 	cmp	DWORD [ebp + 8], 1	; initialize_all
 	jne	init_game_leave
-	mov	DWORD [skilllevel], 0
+	mov	DWORD [skilllevel], DEFAULT_SKILL_LEVEL
 	mov	DWORD [color_on], 1
 	mov	DWORD [debug_on], 0
 
