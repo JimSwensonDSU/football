@@ -369,7 +369,9 @@ run_game:
 
 		; Prompt user to choose field
 		call_choose_field:
+		push	DWORD [ebp - 8]	; initialize_all
 		call	choose_field
+		add	esp, 4
 		cmp	eax, -1
 		je	run_game_leave
 		mov	DWORD [ebp - 4], eax	; field chosen
@@ -2420,31 +2422,55 @@ drawboard:
 
 ;------------------------------------------------------------------------------
 ;
-; int choose_field()
+; int choose_field(int first_visit)
 ;
 ; Displays the field options and prompts user to choose.
 ; Supports up to 10 choices.
 ;
-; If there is only 1 field, just uses it.
+; If there is only 1 field, just uses it.  If first_visit=1, then
+; the title screen will show with instruction to hit Enter.
 ;
 ; Return:  n - for a chosen option
 ;         -1 - No choice made (they hit quit or ctrl-c)
 ;
 segment .data
+choose_fmt1	db	"                                                      ", 10
+		db	"        ___   ___    ___         ____  _   _ _        ", 10
+		db	"       / __| / __|  / __|  ___  |__ / / | | | |       ", 10
+		db	"      | (__  \__ \ | (__  |___|  |_ \ | | |_  _|      ", 10
+		db	"       \___| |___/  \___|       |___/ |_|   |_|       ", 10
+		db	"                                                      ", 10
+		db	"           ____          __  __        ____           ", 10
+		db	"          / __/__  ___  / /_/ /  ___ _/ / /           ", 10
+		db	"         / _// _ \/ _ \/ __/ _ \/ _ `/ / /            ", 10
+		db	"        /_/  \___/\___/\__/_.__/\_,_/_/_/             ", 10
+		db	"                                                      ", 10
+		db	"            Jim Swenson                               ", 10
+		db	"            Jim.Swenson@trojans.dsu.edu               ", 10
+		db	"                                                      ", 10
+		db	0
 
-choose_fmt1	db	"Electronic Football", 10, 10
-		db	"Choose from one of the following field options.", 10, 10
-		db	"Hit the corresponding number to choose, or ", KEY_QUIT, " to quit.", 10, 10, 0
+choose_fmt2a	db	"        Hit Enter to continue, or ", KEY_QUIT, " to quit. ", 10
+		db	0
 
-choose_fmt2	db	"  %d - %s", 10, 0
+choose_fmt2b	db	"   Choose from one of the following field options.    ", 10
+		db	"                                                      ", 10
+		db	" Hit the corresponding number to choose, or ", KEY_QUIT, " to quit.", 10
+		db	"                                                      ", 10
+		db	0
+
+choose_fmt3	db	"  %d - %s", 10, 0
 
 choose_field:
 	enter	0, 0
 
+	; Arguments
+	; [ebp + 8] : first_visit
+
 	push	ebx
 	push	esi
 
-	; Count the number of fields.  If only 1, return it.
+	; Count the number of fields.  If only 1, use it.
 	mov	eax, -1
 	mov	esi, field_options
 	choose_field_count:
@@ -2456,13 +2482,56 @@ choose_field:
 	choose_field_count_end:
 
 	; If 0 or 1 fields, exit.
+	; eax = (# fields) - 1
 	cmp	eax, 0
-	jle	choose_field_leave
+	jl	choose_field_leave
+	jg	choose_field_multiple
 
+	; There is 1 field.  If this is the first visit, show
+	; the title screen and prompt user to hit enter.
+	cmp	DWORD [ebp + 8], 1	; first_visit
+	jne	choose_field_leave
 
 	call	clearscreen
 	call	homecursor
+
 	push	choose_fmt1
+	call	printf
+	add	esp, 4
+
+	push	choose_fmt2a
+	call	printf
+	add	esp, 4
+
+	;
+	; Wait for the user to hit enter, or quit.
+	;
+	title_hit_enter:
+		call	get_key
+
+		cmp	al, KEY_QUIT
+		je	choose_field_quit
+
+		cmp	al, KEY_CTRLC
+		je	choose_field_quit
+
+		cmp	al, KEY_ENTER
+		jne	title_hit_enter
+
+	mov	eax, 0
+	jmp	choose_field_leave
+
+
+	
+	choose_field_multiple:
+	call	clearscreen
+	call	homecursor
+
+	push	choose_fmt1
+	call	printf
+	add	esp, 4
+
+	push	choose_fmt2b
 	call	printf
 	add	esp, 4
 
@@ -2477,7 +2546,7 @@ choose_field:
 		inc	ebx
 		push	DWORD [esi]
 		push	ebx
-		push	choose_fmt2
+		push	choose_fmt3
 		call	printf
 		add	esp, 12
 		add	esi, DWORD [field_option_rec_size]
