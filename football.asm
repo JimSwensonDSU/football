@@ -2440,6 +2440,11 @@ choose_fmt1	db	"                                                      ", 10
 		db	"      | (__  \__ \ | (__  |___|  |_ \ | | |_  _|      ", 10
 		db	"       \___| |___/  \___|       |___/ |_|   |_|       ", 10
 		db	"                                                      ", 10
+		db	'                    _.-=""=-._                        ', 10
+		db	"                  .'\\-++++-//'.                      ", 10
+		db	"                 (  ||      ||  )                     ", 10
+		db	"                  './/      \\.'                      ", 10
+		db	"                    `'-=..=-'`                        ", 10
 		db	"           ____          __  __        ____           ", 10
 		db	"          / __/__  ___  / /_/ /  ___ _/ / /           ", 10
 		db	"         / _// _ \/ _ \/ __/ _ \/ _ `/ / /            ", 10
@@ -2449,6 +2454,8 @@ choose_fmt1	db	"                                                      ", 10
 		db	"            Jim.Swenson@trojans.dsu.edu               ", 10
 		db	"                                                      ", 10
 		db	0
+; ascii art from https://www.asciiart.eu/sports-and-outdoors/football
+; (Art by Joan Stark - jgs)
 
 choose_fmt2a	db	"        Hit Enter to continue, or ", KEY_QUIT, " to quit. ", 10
 		db	0
