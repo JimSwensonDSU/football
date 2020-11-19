@@ -2550,10 +2550,6 @@ choose_field:
 
 
 	choose_field_input:
-		push	TICK
-		call	usleep
-		add	esp, 4
-
 		call	clearscreen
 		call	homecursor
 
@@ -2595,6 +2591,9 @@ choose_field:
 			jmp	choose_field_show_options
 		choose_field_show_options_end:
 
+		push	TICK
+		call	usleep
+		add	esp, 4
 
 		call	get_key
 
