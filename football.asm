@@ -2470,8 +2470,8 @@ choose_fmt2m	db	" Choose from one of the following field options.      ", 10
 		db	"                                                      ", 10
 		db	0
 
-choose_fmt3a	db	"    %d - %s", 10, 0
-choose_fmt3b	db	" -> %d - %s", 10, 0
+choose_fmt3a	db	"  ", "%d", ": ",              "%s",             10, 0
+choose_fmt3b	db	"  ", "%d", ": ", 0x1b, "[7m", "%s", 0x1b, "[m", 10, 0
 
 choose_field:
 	enter	16, 0
@@ -2536,7 +2536,7 @@ choose_field:
 	cmp	eax, 0
 	jl	choose_field_leave
 
-	; if multiple fields, prompt user for their input
+	; If multiple fields, prompt user for their input
 	jg	choose_field_input
 
 	; Just one field.  Only show title screen on first visit
@@ -3605,7 +3605,7 @@ random:
 	int	0x80
 
 	; eax = file descriptor
-	; if eax < 0, error
+	; If eax < 0, error
 
 	; Read 4 bytes
 	mov	ebx, eax
@@ -3795,7 +3795,7 @@ load_boardfile:
 	int	0x80
 
 	; eax = file descriptor
-	; if eax < 0, error
+	; If eax < 0, error
 	cmp	eax, 0
 	jl	load_boardfile_leave
 
