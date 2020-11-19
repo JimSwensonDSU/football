@@ -2457,137 +2457,196 @@ choose_fmt1	db	"                                                      ", 10
 ; ascii art from https://www.asciiart.eu/sports-and-outdoors/football
 ; (Art by Joan Stark - jgs)
 
-choose_fmt2a	db	"        Hit Enter to continue, or ", KEY_QUIT, " to quit. ", 10
+; user prompt for single field
+choose_fmt2s	db	"        Hit Enter to continue, or ", KEY_QUIT, " to quit. ", 10
 		db	0
 
-choose_fmt2b	db	"   Choose from one of the following field options.    ", 10
+; user_prompt for multiple fields
+choose_fmt2m	db	" Choose from one of the following field options.      ", 10
 		db	"                                                      ", 10
-		db	" Hit the corresponding number to choose, or ", KEY_QUIT, " to quit.", 10
+		db	" Use the up/down arrows to select a field and hit     ", 10
+		db	" Enter, or hit a number to choose the field directly. ", 10
+		db	" Hit ", KEY_QUIT, " to quit the game.                              ", 10
 		db	"                                                      ", 10
 		db	0
 
-choose_fmt3	db	"  %d - %s", 10, 0
+choose_fmt3a	db	"    %d - %s", 10, 0
+choose_fmt3b	db	" -> %d - %s", 10, 0
 
 choose_field:
-	enter	0, 0
+	enter	16, 0
 
 	; Arguments
 	; [ebp + 8] : first_visit
 
+	; Local Variables
+	; [ebp - 4]  : field_picked
+	; [ebp - 8]  : num_fields
+	; [ebp - 12] : user_prompt
+	; [ebp - 16] : address of input handler table
+	;
+	; Followed by the input handler table itself:
+	; KEY		HANDLER
+	; KEY		HANDLER
+	; KEY		HANDLER
+	; 0xffffffff
+
 	push	ebx
 	push	esi
 
-	; Count the number of fields.  If only 1, use it.
+	; Count the number of fields and create the input handler table.
+	; If only 1 field, use it.
+
+	push	0x000000ff	; end of input handler table
+	push	choose_field_quit
+	push	KEY_CTRLC
+	push	choose_field_quit
+	push	KEY_QUIT
+	push	choose_field_next
+	push	KEY_DOWN
+	push	choose_field_prior
+	push	KEY_UP
+	push	choose_field_picked
+	push	KEY_ENTER
+
+	mov	DWORD [ebp - 4], 0		; field_picked = 0
+	mov	DWORD [ebp - 8], 0		; num_fields
+	mov	DWORD [ebp - 12], choose_fmt2m	; user_prompt - multiple fields
+
 	mov	eax, -1
 	mov	esi, field_options
 	choose_field_count:
 		cmp	DWORD [esi], 0
 		je	choose_field_count_end
 		inc	eax
+		inc	DWORD [ebp - 8]		; num_fields
+
+		; Add field to input handler table
+		push	choose_field_direct
+		push	eax
+		add	DWORD [esp], '0'
+
 		add	esi, DWORD [field_option_rec_size]
 		jmp	choose_field_count
 	choose_field_count_end:
 
-	; If 0 or 1 fields, exit.
-	; eax = (# fields) - 1
+	mov	DWORD [ebp - 16], esp	; input handler table
+
+	; If no fields, exit.
 	cmp	eax, 0
 	jl	choose_field_leave
-	jg	choose_field_multiple
 
-	; There is 1 field.  If this is the first visit, show
-	; the title screen and prompt user to hit enter.
+	; if multiple fields, prompt user for their input
+	jg	choose_field_input
+
+	; Just one field.  Only show title screen on first visit
+	add	DWORD [ebp - 16], 8	; no need for the input handler for a single field option
 	cmp	DWORD [ebp + 8], 1	; first_visit
 	jne	choose_field_leave
 
-	call	clearscreen
-	call	homecursor
-
-	push	choose_fmt1
-	call	printf
-	add	esp, 4
-
-	push	choose_fmt2a
-	call	printf
-	add	esp, 4
-
-	;
-	; Wait for the user to hit enter, or quit.
-	;
-	title_hit_enter:
-		call	get_key
-
-		cmp	al, KEY_QUIT
-		je	choose_field_quit
-
-		cmp	al, KEY_CTRLC
-		je	choose_field_quit
-
-		cmp	al, KEY_ENTER
-		jne	title_hit_enter
-
-	mov	eax, 0
-	jmp	choose_field_leave
+	cmp	DWORD [ebp - 8], 1	; num_fields
+	jne	choose_field_leave
+	mov	DWORD [ebp - 12], choose_fmt2s	; user_prompt
 
 
-	
-	choose_field_multiple:
-	call	clearscreen
-	call	homecursor
+	choose_field_input:
+		push	TICK
+		call	usleep
+		add	esp, 4
 
-	push	choose_fmt1
-	call	printf
-	add	esp, 4
+		call	clearscreen
+		call	homecursor
 
-	push	choose_fmt2b
-	call	printf
-	add	esp, 4
-
-	;
-	; Show the field options to the user
-	;
-	mov	ebx, -1
-	mov	esi, field_options
-	choose_field_show_options:
-		cmp	DWORD [esi], 0
-		je	choose_field_show_options_end
-		inc	ebx
-		push	DWORD [esi]
-		push	ebx
-		push	choose_fmt3
+		push	choose_fmt1
 		call	printf
-		add	esp, 12
-		add	esi, DWORD [field_option_rec_size]
-		jmp	choose_field_show_options
-	choose_field_show_options_end:
+		add	esp, 4
+
+		push	DWORD [ebp - 12]	; user_prompt
+		call	printf
+		add	esp, 4
+
+		;
+		; Show the field options to the user if there
+		; are multiple options.
+		;
+		cmp	DWORD [ebp - 8], 1	; num_fields
+		je	choose_field_show_options_end
+
+		mov	ebx, -1
+		mov	esi, field_options
+		choose_field_show_options:
+			cmp	DWORD [esi], 0
+			je	choose_field_show_options_end
+			inc	ebx
+
+			push	DWORD [esi]
+			push	ebx
+			cmp	ebx, DWORD [ebp - 4]; field_picked
+			je	choose_field_fmt3b
+			push	choose_fmt3a
+			jmp	choose_field_printf
+			choose_field_fmt3b:
+			push	choose_fmt3b
+			choose_field_printf:
+			call	printf
+			add	esp, 12
+
+			add	esi, DWORD [field_option_rec_size]
+			jmp	choose_field_show_options
+		choose_field_show_options_end:
 
 
-	;
-	; Wait for the user to choose a valid option, or quit.
-	;
-	add	ebx, '0'
-	mov	eax, -1
-	read_option:
 		call	get_key
 
-		cmp	al, KEY_QUIT
-		je	choose_field_quit
+		mov	ebx, DWORD [ebp - 16]		; input handler table
+		sub	ebx, 8
 
-		cmp	al, KEY_CTRLC
-		je	choose_field_quit
+		choose_field_loop:
+			add	ebx, 8
+			cmp	BYTE [ebx], 0xff
 
-		cmp	al, '0'
-		jl	read_option
-		cmp	al, bl
-		jg	read_option
+			; input not found in table
+			je	choose_field_input
 
+			cmp	BYTE [ebx], al
+			jne	choose_field_loop
 
-	; They chose a valid option
-	sub	eax, '0'
-	jmp	choose_field_leave
+			; Found the key
+			; ebx     : key
+			; ebx + 4 : handler
+
+			; push the address of the handler and jump to it
+			push	DWORD [ebx + 4]
+			ret
 
 
 	choose_field_quit:
 		mov	eax, -1
+		jmp	choose_field_leave
+
+	choose_field_next:
+		inc	DWORD [ebp - 4]		; field_picked
+		mov	ebx, DWORD [ebp - 4]
+		cmp	ebx, DWORD [ebp - 8]	; num_fields
+		jl	choose_field_input
+		dec	ebx			; already at last choice
+		mov	DWORD [ebp - 4], ebx
+		jmp	choose_field_input
+
+	choose_field_prior:
+		dec	DWORD [ebp - 4]		; field_picked
+		mov	ebx, DWORD [ebp - 4]
+		cmp	ebx, 0
+		jge	choose_field_input
+		mov	DWORD [ebp - 4], 0	; already at 0
+		jmp	choose_field_input
+
+	choose_field_picked:
+		mov	eax, DWORD [ebp - 4]	; field_picked
+		jmp	choose_field_leave
+
+	choose_field_direct:
+		sub	eax, '0'
 		jmp	choose_field_leave
 
 
