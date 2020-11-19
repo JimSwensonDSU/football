@@ -649,6 +649,7 @@ update_game_state:
 	enter	0, 0
 
 	push	eax
+	push	ebx
 
 
 	;
@@ -986,6 +987,7 @@ update_game_state:
 
 
 	leave_update_game_state:
+	pop	ebx
 	pop	eax
 
 	leave
@@ -2494,6 +2496,8 @@ choose_field:
 	push	ebx
 	push	esi
 
+	call	clearscreen
+
 	; Count the number of fields and create the input handler table.
 	; If only 1 field, use it.
 
@@ -2550,7 +2554,6 @@ choose_field:
 
 
 	choose_field_input:
-		call	clearscreen
 		call	homecursor
 
 		push	choose_fmt1
