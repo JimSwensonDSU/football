@@ -699,24 +699,24 @@ update_game_state:
 		; good - other team starts at FIELDPOS
 		; miss - other team starts at 100-fieldpos
 		;
-		; setting values for the "good" scenario:
-		mov	DWORD [fieldpos], FIELDPOS
-		mov	DWORD [lineofscrimmage], FIELDPOS
+
 		mov	DWORD [down], 1
 		mov	DWORD [yardstogo], 10
 		call	switch_team
 		call	init_player_positions
 
-		; good
-		cmp	eax, 1
-		jmp	state_end_of_quarter
-
 		; miss
-		; complement fieldpos and lineofscrimmage for the "bad" scenario:
-		mov	eax, 100
-		sub	eax, DWORD [fieldpos]
-		mov	DWORD [fieldpos], eax
-		mov	DWORD [lineofscrimmage], eax
+		mov	ebx, 100
+		sub	ebx, DWORD [fieldpos]
+		mov	DWORD [fieldpos], ebx
+		mov	DWORD [lineofscrimmage], ebx
+
+		cmp	eax, 1
+		jne	state_end_of_quarter
+
+		; good
+		mov	DWORD [fieldpos], FIELDPOS
+		mov	DWORD [lineofscrimmage], FIELDPOS
 
 		jmp	state_end_of_quarter
 
