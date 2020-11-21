@@ -17,33 +17,88 @@
 ; Note:
 ;
 ; - These "comment" lines are skipped, but only at the start of this file.
+;
 ; - The ";" must be in the first column.
+;
 ; - Comment lines are not required.  They are included in this sample file
 ;   only for instructions.
+;
+; - digit/char markers must be in this exact order:
+;
+;    home score:
+;       char - possession indicator
+;      digit - 10s digit
+;      digit - 1s digit
+;
+;    visitor score:
+;       char - possession indicator
+;      digit - 10s digit
+;      digit - 1s digit
+;
+;    quarter:
+;      digit - 1 digit
+;
+;    time remaining:
+;      digit - 100s digit
+;      digit - 10s digit
+;      digit - 1s digit
+;
+;    down:
+;      digit - 1s digit
+;
+;    field position:
+;      digit - 10s digit
+;      digit - 1s digit
+;       char - direction indicator
+;
+;    yards to go:
+;      digit - 10s digit
+;      digit - 1s digit
+;
+;    keys
+;       char - up
+;       char - left
+;       char - down
+;       char - right
+;       char - kick
+;       char - quit
+;       char - debug
+;
 ; - See the comments in football.asm for details on the boardstr layout.
 ;
 &!*$ #@
-                                                    
-           Welcome to Electronic Football           
-                                                    
-            @ HOME: ##   @ VISITOR: ##              
-   --------------                 --------------    
-   | QUARTER: # |                 | TIME: ##.# |    
-   ---------------------------------------------    
-   ||| * | * | * | ! | * | * | * | * | * | * |||    
-\  ||-   -   -   -   -   -   -   -   -   -   -||  / 
- | |||$& | * | * | ! | * | ! | * | * | ! | *$||| |  
-/  ||-   -   -   -   -   -   -   -   -   -   -||  \ 
-   ||| * | * | * | ! | * | * | * | * | * | * |||    
-   ---------------------------------------------    
-   ---------------------------------------------    
-   | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |    
-   ---------------------------------------------    
-                                                    
-     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT        
-         Kick: @ (only on 4th down)                 
-         Quit: @                                    
-                                                    
-     Hit Enter after each play                      
-     Hit @ to toggle debug display                  
-                                                    
+                                                                   
+                         -------- --------.                        
+                        |  HOME  |  VIS   |                        
+            ------------|  @##   |  @##   |------------            
+           | QUARTER: # |        |        | TIME: ##.# |           
+            -------------------------------------------            
+           | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |           
+            -------------------------------------------            
+                  ... + ........ + ........ + ...                  
+              + ......  ........   ........  ...... +              
+           ...   .....   .......   .......   .....   ...           
+        + .... + ..... + ....... + ....... + ..... + .... +        
+       ..  ....   .....   ......   ......   .....   ....  ..       
+    + ... + ... + ..... + ...... + ...... + ..... + ... + ... +    
+    ....   ---------------------------------------------  ....     
+  + ...    ||| * | * | * | ! | * | * | * | * | * | * |||    ... +  
+   .... \  ||-   -   -   -   -   -   -   -   -   -   -||  / ....   
+ + ....  | |||$& | * | * | ! | * | ! | * | * | ! | *$||| |  .... + 
+   .... /  ||-   -   -   -   -   -   -   -   -   -   -||  \ ....   
+  + ...    ||| * | * | * | ! | * | * | * | * | * | * |||    ... +  
+    ....   ---------------------------------------------   ....    
+    + ... + ... + ..... + ...... + ...... + ..... + ... + ... +    
+       ..  ....   .....   ......   ......   .....   ....  ..       
+        + .... + ..... + ....... + ....... + ..... + .... +        
+           ...   .....   .......   .......   .....   ...           
+              + ......  ........   ........  ...... +              
+                  ... + ........ + ........ + ...                  
+                                                                   
+             Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT               
+                 Kick: @ (only on 4th down)                        
+                 Quit: @                                           
+                                                                   
+             Hit Enter after each play                             
+             Hit @ to toggle debug display                         
+                                                                   
