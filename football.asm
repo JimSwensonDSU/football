@@ -159,6 +159,8 @@
 
 segment .data
 
+	version			db	"v1.0", 0
+
 	; Splash message colors: foreground, background
 	splash_good		db	0x1b, "[92m", 0x1b, "[40m", 0	; light green, black
 	splash_bad		db	0x1b, "[97m", 0x1b, "[41m", 0	; white, red
@@ -2045,7 +2047,7 @@ field_option_rec_size	dd	36
 ;      digit - 1s digit
 ;
 ;    quarter:
-;      digit - 1 digit
+;      digit - 1s digit
 ;
 ;    time remaining:
 ;      digit - 100s digit

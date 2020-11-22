@@ -36,7 +36,7 @@
 ;      digit - 1s digit
 ;
 ;    quarter:
-;      digit - 1 digit
+;      digit - 1s digit
 ;
 ;    time remaining:
 ;      digit - 100s digit

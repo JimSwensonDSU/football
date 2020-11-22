@@ -12,7 +12,7 @@ The optional
 .B boardfile
 is a board layout to load in.  See the
 .B BOARDFILE
-section below for a detailed explanation of the layout for this file.  Default is to use  the boardstr_N definitions that are included in the source code.
+section below for a detailed explanation of the format for this file.  Default is to use  the boardstr_N definitions that are included in the source code.
 .P
 This implementation is based on the remake that came out in 2000.
 .IP \(bu
@@ -23,7 +23,8 @@ Note that
 .B MAX_FIELD_LENGTH
 , and
 .B MAX_DEFENSE
-set some hard upper limits.
+set some hard upper limits.  See the
+.BR "GAME CONSTANTS" " section."
 
 Original game: length 9, width 3.
 
@@ -37,7 +38,7 @@ Supports kick (punt or field goal).
 
 .IP \(bu
 Adds in chance of fumble on any tackle.  See
-.B FUMBLE_PCT
+.BR FUMBLE_PCT .
 
 .IP \(bu
 Instead of sound, a splash screen is used to communicate
@@ -99,9 +100,277 @@ Change the skill level.  0 = easiest, 5 = hardest.
 Quit the game.  Hitting Ctrl-C will also work.
 
 .SH BOARDFILE
-Test
+The game supports the optional
+.B boardfile
+parameter for specifying a file containing an alternate layout for the playing board.
+Refer to the
+.B GAME CONSTANTS
+section for specific numeric values.
 
-.SH GAME CONSTANTS
+.P
+The boardfile should contain the following elements:
+
+.IP \(bu
+A definition of the playfield itself with positions marked for the 1 offensive player, the defensive players, and all other possible player positions.
+
+.IP \(bu
+A pair of markers designating the position of "splash" messages on the board.
+
+.IP \(bu
+The required number of digit and char markers.  See
+.BR BOARD_DIGITS_REQUIRED " and"
+.BR BOARD_CHARS_REQUIRED "."
+
+.IP \(bu
+Other decorations/ascii artwork.
+
+.IP \(bu
+Optionally, lead-in comment lines.  Comments must appears only at the start of the file, and any comment line must start with ";".
+
+.P
+Following any optional comment lines, the first line of the board definition must be exactly 8 characters long (including the newline) as follows:
+
+.TP
+.B marker_off
+The character used to mark the offensive player.
+
+.TP
+.B marker_def
+The character used to mark defensive players.
+
+.TP
+.B marker_playpos
+The character used to mark other valid player positions.
+
+.TP
+.B marker_splash
+The character used to mark the splash message start/end.
+
+.TP
+.B splash_repl
+The character to use to replace the splash markers.
+
+.TP
+.B marker_digit
+The character used to designate a display digit.
+
+.TP
+.B marker_char
+The character used to designate a display char.
+
+.TP
+.B NEWLINE
+
+.P
+The remaining lines following this first line are used to define the board layout itself.  Note that the above "marker_*" characters may not be used elsewhere within the file, with one exception; for
+.B marker_splash
+the first pair encountered is used to designate the location of the "splash" messages.  Subsequent occurences of this character are displayed literally.
+
+.P
+By providing a sufficient and consistent right padding, the display will "self recover" ok on window resizes.
+
+.P
+Within the file, the
+.B marker_digit
+and
+.B marker_char
+characters must appear in this specific order:
+
+.P
+.B home score
+.IP
+char \- possession indicator
+.IP
+digit \- 10s digit
+.IP
+digit \- 1s digit
+
+.P
+.B visitor score
+.IP
+char - possession indicator
+.IP
+digit - 10s digit
+.IP
+digit - 1s digit
+
+.P
+.B quarter
+.IP
+digit - 1s digit
+
+.P
+.B time remaining
+.IP
+digit - 100s digit
+.IP
+digit - 10s digit
+.IP
+digit - 1s digit
+
+.P
+.B down
+.IP
+digit - 1s digit
+
+.P
+.B field position
+.IP
+digit - 10s digit
+.IP
+digit - 1s digit
+.IP
+char - direction indicator
+
+.P
+.B yards to go
+.IP
+digit - 10s digit
+.IP
+digit - 1s digit
+
+.P
+.B keys
+.IP
+char - up
+.IP
+char - left
+.IP
+char - down
+.IP
+char - right
+.IP
+char - kick
+.IP
+char - quit
+.IP
+char - debug
+
+.P
+If the specified boardfile cannot be opened, the game will fall back to use the pre-defined boardstr_N definitions in the source code.
+
+.P
+If the boardfile does not meet all of the above requirements, the init_field() function will fail and cause the game to exit.  The error codes are as follows:
+
+.IP
+1 - More than 1 offensive player on playfield
+
+.IP
+2 - Exceeded
+.B MAX_DEFENSE
+defensive players on playfield
+
+.IP
+3 - Exceeded
+.B MAX_FIELD_WIDTH
+
+.IP
+4 - Exceeded
+.B MAX_FIELD_LENGTH
+
+.IP
+5 - No offensive players on playfield
+
+.IP
+6 - No defensive players on playfield
+
+.IP
+7 - field_length = 0
+
+.IP
+8 - field_width = 0
+
+.IP
+9 - playpos_num != field_length * field_width
+
+.IP
+10 - too many player positions on a field row
+
+.IP
+11 - missing first splash marker in boardstr
+
+.IP
+12 - missing second splash marker in boardstr
+
+.IP
+13 - invalid board_num
+
+.IP
+14 - No player positions found in boardstr
+
+.IP
+15 - Did not find
+.B BOARD_DIGITS_REQUIRED
+many marker_digit_N markers
+
+.IP
+16 - Did not find
+.B BOARD_CHARS_REQUIRED
+many marker_char_N markers
+
+.SH "EXAMPLE BOARDFILE"
+
+A simple example boardfile follows.  The trailing "." is shown only for ease of indicating the right padding in the layout and should be removed.
+
+.in 0
+--- CUT HERE ---
+.br
+; This is a comment line.  The first non-comment line
+.br
+; is exactly 8 characters, counting the NEWLINE:
+.br
+&!*$ #@
+.br
+                                                    .
+.br
+            @ HOME: ##   @ VISITOR: ##              .
+.br
+                                                    .
+.br
+   --------------                 --------------    .
+.br
+   | QUARTER: # |                 | TIME: ##.# |    .
+.br
+   ---------------------------------------------    .
+.br
+   ||| * | * | * | ! | * | * | * | * | * | * |||    .
+.br
+\\  ||-   -   -   -   -   -   -   -   -   -   -||  / .
+.br
+ | |||$& | * | * | ! | * | ! | * | * | ! | *$||| |  .
+.br
+/  ||-   -   -   -   -   -   -   -   -   -   -||  \\ .
+.br
+   ||| * | * | * | ! | * | * | * | * | * | * |||    .
+.br
+   ---------------------------------------------    .
+.br
+   ---------------------------------------------    .
+.br
+   | DOWN: # | FIELDPOS: ##@ | YARDS TO GO: ## |    .
+.br
+   ---------------------------------------------    .
+.br
+                                                    .
+.br
+     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT        .
+.br
+         Kick: @ (only on 4th down)                 .
+.br
+         Quit: @                                    .
+.br
+                                                    .
+.br
+     Hit Enter after each play                      .
+.br
+     Hit @ to toggle debug display                  .
+.br
+                                                    .
+.br
+--- CUT HERE ---
+.fi
+
+.SH "GAME CONSTANTS"
 
 .TP
 .BR MAX_FIELD_WIDTH " 9"
@@ -139,8 +408,16 @@ Range for punt distance.
 .BR GAME_TIME " 150"
 Number of "ticks" per quarter.  A "tick" is approximately 1 second.
 
+.TP
+.BR BOARD_DIGITS_REQUIRED " 13"
+Number of digit markers required in the board file.
+
+.TP
+.BR BOARD_CHARS_REQUIRED " 10"
+Number of char markers required in in the board file.
+
 .SH AUTHOR
 Written by Jim Swenson <Jim.Swenson@trojans.dsu.edu>
 
-.SH REPORTING BUGS
+.SH "REPORTING BUGS"
 Report bugs to <Jim.Swenson@trojans.dsu.edu>
