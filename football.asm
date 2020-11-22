@@ -440,6 +440,7 @@ run_game:
 			push	msg_gameover
 			call	drawsplash
 			add	esp, 4
+			call	drawdebug
 			call	wait_for_enter
 
 			cmp	DWORD [abort], 1
