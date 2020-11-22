@@ -118,7 +118,6 @@
 %define	MAX_FIELD_WIDTH		9	; max number of player positions across the width of the field
 %define	MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
 %define	MAX_DEFENSE		11	; max number of defenders
-%define	REQUIRED
 %define	BOARD_DIGITS_REQUIRED	13	; Number of marker_digit_N required
 %define	BOARD_CHARS_REQUIRED	10	; Number of marker_char_N required
 
@@ -2590,9 +2589,13 @@ choose_field:
 			call	printf
 			add	esp, 12
 
+			call	clear_to_endofline
+
 			add	esi, DWORD [field_option_rec_size]
 			jmp	choose_field_show_options
 		choose_field_show_options_end:
+
+		call clear_to_endofscreen
 
 		push	TICK
 		call	usleep
