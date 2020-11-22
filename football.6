@@ -1,0 +1,146 @@
+.TH FOOTBALL "6" "Fall 2020" "football 1.0" "Games"
+.SH NAME
+football \- An implementation of the handheld Mattel Electronic Football game.
+.SH SYNOPSIS
+.B football
+[boardfile]
+.SH DESCRIPTION
+.B football
+is an implementation of the 1977 handheld Mattel Electronic Football game written in 32 bit x86 assembly code.
+.P
+The optional
+.B boardfile
+is a board layout to load in.  See the
+.B BOARDFILE
+section below for a detailed explanation of the layout for this file.  Default is to use  the boardstr_N definitions that are included in the source code.
+.P
+This implementation is based on the remake that came out in 2000.
+.IP \(bu
+Field length and width are set via the boardstr definition.
+Note that
+.B MAX_FIELD_WIDTH
+, 
+.B MAX_FIELD_LENGTH
+, and
+.B MAX_DEFENSE
+set some hard upper limits.
+
+Original game: length 9, width 3.
+
+Remake game: length 10, width 3.
+.IP \(bu
+Supports running backwards, but not behind the line
+of scrimmage.  Original supported only forward.
+
+.IP \(bu
+Supports kick (punt or field goal).
+
+.IP \(bu
+Adds in chance of fumble on any tackle.  See
+.B FUMBLE_PCT
+
+.IP \(bu
+Instead of sound, a splash screen is used to communicate
+game events.  Colors can be turned on/off for the
+message display.
+
+.IP \(bu
+No "ST"/"SC" keys needed as in remake/original.  Instead, all
+pertinent game stats are always displayed.  Enter is used
+to enable the next play.
+
+.IP \(bu
+As in the original and remake, initiating any movement will start
+the play.
+
+.IP \(bu
+A debug screen is available to show various game variables.
+
+.SH INPUTS
+
+.TP
+.B w
+Moves the offensive player up.  The up arrow also works.
+
+.TP
+.B a
+Moves the offensive player left.  The left arrow also works.
+
+.TP
+.B s
+Moves the offensive player down.  The down arrow also works.
+
+.TP
+.B d
+Moves the offensive player right.  The right arrow also works.
+
+.TP
+.B k
+Performs a punt or a field goal attempt, depending on field position.  Only available on 4th down.
+
+.TP
+.B Enter
+Used to continue after each play.
+
+.TP
+.B v
+Toggle the debug display.
+
+.TP
+.B c
+Toggle use of color.
+
+.TP
+.B 0\-5
+Change the skill level.  0 = easiest, 5 = hardest.
+
+.TP
+.B Q
+Quit the game.  Hitting Ctrl-C will also work.
+
+.SH BOARDFILE
+Test
+
+.SH GAME CONSTANTS
+
+.TP
+.BR MAX_FIELD_WIDTH " 9"
+Max number of player positions across the width of the field.
+
+.TP
+.BR MAX_FIELD_LENGTH " 15"
+Max number of player positions along the length of the field.
+
+.TP
+.BR MAX_DEFENSE " 11"
+Max number of defenders.
+
+.TP
+.BR FIELDPOS " 20"
+Starting field position after a score, touchback, or start of second half.
+
+.TP
+.BR FIELDGOAL_MIN " 65"
+Minimum distance from offense's endzone to attempt a field goal.  i.e. on the defense's 35 or closer.
+
+.TP
+.BR FIELDGOAL_PCT " 75"
+Percent chance of making a field goal attempt.
+
+.TP
+.BR FUMBLE_PCT " 1"
+Percent chance of fumbling on a tackle.
+
+.TP
+.BR MIN_PUNT,MAX_PUNT " 20,60"
+Range for punt distance.
+
+.TP
+.BR GAME_TIME " 150"
+Number of "ticks" per quarter.  A "tick" is approximately 1 second.
+
+.SH AUTHOR
+Written by Jim Swenson <Jim.Swenson@trojans.dsu.edu>
+
+.SH REPORTING BUGS
+Report bugs to <Jim.Swenson@trojans.dsu.edu>
