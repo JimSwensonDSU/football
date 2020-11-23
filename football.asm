@@ -63,11 +63,10 @@
 ;
 ; NOTE:
 ;
-; - Linux system calls are used for nanosleep and file
-;   open, close, read, write, fcntl, and stat operations.
+; - Linux system calls are used for nanosleep and file open,
+;   close, read, write, fcntl, ioctl, and stat operations.
 ;
-; - libc functions are used for:
-;     terminal settings: tcsetattr, tcgetattr
+; - No libc functions are used.
 ;
 ; - The screen refresh recovers reasonably well from
 ;   window resizes.  In some cases, hiding/showing the
@@ -89,6 +88,7 @@
 %define	SYS_write	0x04
 %define	SYS_open	0x05
 %define	SYS_close	0x06
+%define	SYS_ioctl	0x36
 %define	SYS_fcntl	0x37
 %define	SYS_newstat	0x6a
 %define	SYS_nanosleep	0xa2
@@ -106,6 +106,9 @@
 
 %define	F_GETFL		3
 %define	F_SETFL		4
+
+%define	TCGETS		21505
+%define	TCSETSF		21506
 
 ;
 ; Game constants
@@ -246,7 +249,6 @@ segment .bss
 
 segment .text
 	global  main
-	extern  tcsetattr, tcgetattr	; for terminal settings
 
 main:
 	push	ebp
@@ -4158,6 +4160,79 @@ fcntl:
 	int	0x80
 
 	fcntl_leave:
+	pop	edx
+	pop	ecx
+	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int tcgetattr(int fd, struct termios *termios_p)
+;
+; Implementation of tcgetattr()
+;
+; Return: return value from SYS_ioctl
+tcgetattr:
+	enter	0, 0
+
+	push	ebx
+	push	ecx
+	push	edx
+
+	; Arguments:
+	; [ebp + 8]  : fd
+	; [ebp + 12] : termios_p
+
+	mov	eax, SYS_ioctl
+	mov	ebx, DWORD [ebp + 8]
+	mov	ecx, TCGETS
+	mov	edx, DWORD [ebp + 12]
+	int	0x80
+
+	pop	edx
+	pop	ecx
+	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int tcsetattr(int fd, int optional_actions, const struct termios *termios_p);
+;
+; Implementation of tcsetattr() supporting optional_actions = TCSAFLUSH
+;
+; Return: return value from sys_ioctl, or -1
+tcsetattr:
+	enter	0, 0
+
+	push	ebx
+	push	ecx
+	push	edx
+
+	; Arguments:
+	; [ebp + 8]  : fd
+	; [ebp + 12] : optional_actions
+	; [ebp + 16] : termios_p
+
+	mov	eax, -1
+
+	cmp	DWORD [ebp + 12], TCSAFLUSH
+	jne	tcsetattr_leave
+
+	mov	eax, SYS_ioctl
+	mov	ebx, DWORD [ebp + 8]
+	mov	ecx, TCSETSF
+	mov	edx, DWORD [ebp + 16]
+	int	0x80
+
+	tcsetattr_leave:
 	pop	edx
 	pop	ecx
 	pop	ebx
