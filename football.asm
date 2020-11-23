@@ -15,6 +15,11 @@
 ;        Default is to use the boardstr_N definitions that are
 ;        included in the source code.
 ;
+; Building:
+;
+;        nasm -f elf -F dwarf football.asm
+;        gcc -nostdlib -m32 -o football football.o
+;
 ;
 ; This implementation is based on the remake.
 ;
