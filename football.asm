@@ -64,10 +64,9 @@
 ; NOTE:
 ;
 ; - Linux system calls are used for nanosleep and file
-;   open, close, read, write, and stat operations.
+;   open, close, read, write, fcntl, and stat operations.
 ;
 ; - libc functions are used for:
-;        STDIN settings: fcntl
 ;     terminal settings: tcsetattr, tcgetattr
 ;
 ; - The screen refresh recovers reasonably well from
@@ -90,6 +89,7 @@
 %define	SYS_write	0x04
 %define	SYS_open	0x05
 %define	SYS_close	0x06
+%define	SYS_fcntl	0x37
 %define	SYS_newstat	0x6a
 %define	SYS_nanosleep	0xa2
 
@@ -246,7 +246,6 @@ segment .bss
 
 segment .text
 	global  main
-	extern	fcntl			; for STDIN settings
 	extern  tcsetattr, tcgetattr	; for terminal settings
 
 main:
@@ -4117,6 +4116,49 @@ usleep:
 	xor	ecx, ecx
 	int	0x80
 
+	pop	ecx
+	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int fcntl(unsigned int fd, unsigned int cmd, unsigned long arg)
+;
+; Implementation of fcntl() supporting F_GETFL and F_SETFL
+;
+; Return: return value from SYS_fcntl, or -1
+fcntl:
+	enter	0, 0
+
+	push	ebx
+	push	ecx
+	push	edx
+
+	; Arguments
+	; [ebp + 8]  : fd
+	; [ebp + 12] : cmd
+	; [ebp + 16] : arg
+
+	mov	eax, -1
+
+	cmp	DWORD [ebp + 12], F_GETFL
+	je	fcntl_call
+	cmp	DWORD [ebp + 12], F_SETFL
+	jne	fcntl_leave
+
+	fcntl_call:
+	mov	eax, SYS_fcntl
+	mov	ebx, DWORD [ebp + 8]
+	mov	ecx, DWORD [ebp + 12]
+	mov	edx, DWORD [ebp + 16]
+	int	0x80
+
+	fcntl_leave:
+	pop	edx
 	pop	ecx
 	pop	ebx
 
