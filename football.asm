@@ -259,7 +259,7 @@ segment .text
 _start:
 	xor	ebp, ebp
 
-	; Stack is esentially:
+	; Stack is essentially:
 	;   argc
 	;   argv[0]
 	;   argv[1]
