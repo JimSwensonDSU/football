@@ -63,11 +63,10 @@
 ;
 ; NOTE:
 ;
-; - Linux system calls are used for file open, close,
-;   read, write, and stat operations.
+; - Linux system calls are used for nanosleep and file
+;   open, close, read, write, and stat operations.
 ;
 ; - libc functions are used for:
-;          sleep delays: usleep
 ;        STDIN settings: fcntl
 ;     terminal settings: tcsetattr, tcgetattr
 ;
@@ -92,6 +91,7 @@
 %define	SYS_open	0x05
 %define	SYS_close	0x06
 %define	SYS_newstat	0x6a
+%define	SYS_nanosleep	0xa2
 
 %define	STDIN		0
 %define	STDOUT		1
@@ -152,7 +152,7 @@
 %define	SPLASH_NEUTRAL	'N'
 
 ; counters
-%define	TICK		100000	; 1/10th of a second
+%define	TICK		100000	; 1/10th of a second (micro seconds)
 %define	TIMER_COUNTER	10	; Number of ticks between decrementing timeremaining
 %define	DEFENSE_COUNTER	16	; Number of ticks between moving defense
 
@@ -189,6 +189,9 @@ segment .bss
 	save_termios		resb	60
 	save_c_lflag		resb	4
 	save_stdin_flags	resb	4
+
+	; for calling nanosleep()
+	timespec		resd	2
 
 	; for calling stat()
 	statbuf			resb	88
@@ -243,7 +246,6 @@ segment .bss
 
 segment .text
 	global  main
-	extern	usleep			; for sleep delays
 	extern	fcntl			; for STDIN settings
 	extern  tcsetattr, tcgetattr	; for terminal settings
 
@@ -4075,6 +4077,48 @@ terminal_restore_mode:
 	add	esp, 12
 
 	pop	eax
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int usleep(unsigned int useconds)
+;
+; Sleep for useconds micro seconds.
+;
+; Return: The return from SYS_nanosleep
+;
+usleep:
+	enter	0, 0
+
+	push	ebx
+	push	ecx
+
+	; Arguments
+	; [ebp + 8] : useconds
+
+	mov	ebx, 1000000
+
+	mov	eax, DWORD [ebp + 8]
+	xor	edx, edx
+	div	ebx
+	mov	DWORD [timespec], eax	; timespec.tv_sec
+
+	xchg	eax, edx
+	mov	ebx, 1000
+	mul	ebx
+	mov	DWORD [timespec + 4], eax	; timespec.tn_nsec
+
+	mov	eax, SYS_nanosleep
+	mov	ebx, timespec
+	xor	ecx, ecx
+	int	0x80
+
+	pop	ecx
+	pop	ebx
 
 	leave
 	ret
