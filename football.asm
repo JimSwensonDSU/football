@@ -84,6 +84,7 @@
 ;
 ; Values for system/library calls
 ;
+%define	SYS_exit	0x01
 %define	SYS_read	0x03
 %define	SYS_write	0x04
 %define	SYS_open	0x05
@@ -248,32 +249,49 @@ segment .bss
 	debug_on		resd	1	; 1 = yes, 0 = no
 
 segment .text
-	global  main
+	global  _start
 
-main:
-	push	ebp
-	mov		ebp, esp
-	; ********** CODE STARTS HERE **********
+_start:
+	xor	ebp, ebp
+
+	; Stack is esentially:
+	;   argc
+	;   argv[0]
+	;   argv[1]
+	;   .
+	;   .
+	;   .
+	;   NULL
+	;   env[0]
+	;   env[1]
+	;   .
+	;   .
+	;   .
+	;   NULL
+
 
 	;
 	; Pass argv[1] (boardfile) in to run_game
 	;
+
 	mov	eax, 0
-	cmp	DWORD [ebp + 8], 2	; argc
+
+	pop	ebx		; argc
+	cmp	ebx, 2
 	jl	invoke_game
-	mov	eax, DWORD [ebp + 12]	; argv
-	mov	eax, DWORD [eax + 4]	; argv[1]
+	pop	eax		; argv[0]
+	pop	eax		; argv[1]
 
 	invoke_game:
 	push	eax
 	call	run_game
 	add	esp, 4
 
-	; *********** CODE ENDS HERE ***********
-	mov		eax, 0
-	mov		esp, ebp
-	pop		ebp
-	ret
+
+	; Exit
+	mov	eax, SYS_exit
+	mov	ebx, 0
+	int	0x80
 
 ;------------------------------------------------------------------------------
 ;

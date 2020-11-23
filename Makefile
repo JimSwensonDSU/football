@@ -2,7 +2,7 @@ NAME=football
 AS = /home/jswenson/nasm-2.15.05/nasm
 ASFLAGS = -f elf -F dwarf
 CC = gcc
-CFLAGS = -m32
+CFLAGS = -nostdlib -m32
 
 all: $(NAME)
 
