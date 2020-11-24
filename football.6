@@ -416,6 +416,30 @@ Number of digit markers required in the board file.
 .BR BOARD_CHARS_REQUIRED " 10"
 Number of char markers required in in the board file.
 
+.SH DEFENSE AI
+
+The AI for moving defensive players is quite simple:
+
+.IP \(bu
+Frequency of defense movement is determined by skilllevel setting.
+.br
+Move 1 defender each (16-3*skilllevel)/10 seconds.
+
+.IP \(bu
+Pick one defender at random to move.
+
+.IP \(bu
+Defenders want to move towards the offense.
+
+.IP \(bu
+Will move one space in X or Y direction towards the offense.
+
+.IP \(bu
+If move would end on offense position, it's a tackle.
+
+.IP \(bu
+If move would end on another defense position, ignore the move.
+
 .SH AUTHOR
 Written by Jim Swenson <Jim.Swenson@trojans.dsu.edu>
 
