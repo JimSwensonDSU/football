@@ -15,11 +15,6 @@
 ;        Default is to use the boardstr_N definitions that are
 ;        included in the source code.
 ;
-; Building:
-;
-;        nasm -f elf -F dwarf football.asm
-;        gcc -nostdlib -m32 -o football football.o
-;
 ;
 ; This implementation is based on the remake.
 ;
@@ -89,7 +84,6 @@
 ;
 ; Values for system/library calls
 ;
-%define	SYS_exit	0x01
 %define	SYS_read	0x03
 %define	SYS_write	0x04
 %define	SYS_open	0x05
@@ -254,49 +248,33 @@ segment .bss
 	debug_on		resd	1	; 1 = yes, 0 = no
 
 segment .text
-	global  _start
+	global  main
 
-_start:
-	xor	ebp, ebp
-
-	; Stack is essentially:
-	;   argc
-	;   argv[0]
-	;   argv[1]
-	;   .
-	;   .
-	;   .
-	;   NULL
-	;   env[0]
-	;   env[1]
-	;   .
-	;   .
-	;   .
-	;   NULL
-
+main:
+	push	ebp
+	mov	ebp, esp
+	; ********** CODE STARTS HERE **********
 
 	;
 	; Pass argv[1] (boardfile) in to run_game
 	;
-
 	mov	eax, 0
-
-	pop	ebx		; argc
-	cmp	ebx, 2
+	cmp	DWORD [ebp + 8], 2	; argc
 	jl	invoke_game
-	pop	eax		; argv[0]
-	pop	eax		; argv[1]
+	mov	eax, DWORD [ebp + 12]	; argv
+	mov	eax, DWORD [eax + 4]	; argv[1]
 
 	invoke_game:
 	push	eax
 	call	run_game
 	add	esp, 4
 
+	; *********** CODE ENDS HERE ***********
+	mov	eax, 0
+	mov	esp, ebp
+	pop	ebp
+	ret
 
-	; Exit
-	mov	eax, SYS_exit
-	mov	ebx, 0
-	int	0x80
 
 ;------------------------------------------------------------------------------
 ;
