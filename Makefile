@@ -1,17 +1,10 @@
 NAME=football
-AS = /home/jswenson/nasm-2.15.05/nasm
-ASFLAGS = -f elf -F dwarf
-CC = gcc
-CFLAGS = -m32
 
-all: $(NAME)
+all: football
 
 clean:
-	rm -rf $(NAME) $(NAME).o $(NAME).lst
+	rm -rf football football.o
 
-$(NAME).lst: $(NAME).asm
-	$(AS) $(ASFLAGS) -g -l $(NAME).lst $(NAME).asm
-
-$(NAME): $(NAME).asm
-	$(AS) $(ASFLAGS) -g -o $(NAME).o $(NAME).asm
-	$(CC) $(CFLAGS) -g -o $(NAME) $(NAME).o
+football: football.asm
+	nasm -f elf -F dwarf football.asm
+	gcc -m32 -o football football.o
