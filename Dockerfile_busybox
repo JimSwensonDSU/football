@@ -1,0 +1,11 @@
+FROM ubuntu:latest as builder
+COPY football.asm /
+RUN apt-get update && apt-get install -y nasm gcc gcc-multilib
+RUN nasm -f elf -F dwarf football.asm
+RUN gcc -static -m32 -o football football.o
+
+
+FROM busybox
+COPY football_busybox.sh field.txt /
+COPY --from=builder /football /
+ENTRYPOINT ["/football_busybox.sh"]
