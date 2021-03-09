@@ -9,4 +9,5 @@ FROM alpine:latest
 RUN apk --no-cache add groff
 COPY football.sh field.txt football.6 /
 COPY --from=builder /football /
+RUN chmod 755 /football /football.sh
 ENTRYPOINT ["/football.sh"]

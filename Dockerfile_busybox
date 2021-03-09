@@ -8,4 +8,5 @@ RUN gcc -static -m32 -o football football.o
 FROM busybox
 COPY football_busybox.sh field.txt /
 COPY --from=builder /football /
+RUN chmod 755 /football /football_busybox.sh
 ENTRYPOINT ["/football_busybox.sh"]
