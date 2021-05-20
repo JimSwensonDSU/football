@@ -16,6 +16,8 @@ The code uses no libc function and instead leverages Linux syscalls.
 With Docker installed, you can build and run football without needing to
 have a working Linux instance or even cloning the repo.
 
+Note: Enable the WSL 2 engine in Docker Desktop for this.
+
 ### Build an image named "football":
 ```
   docker build -t football https://github.com/JimSwensonDSU/football.git
