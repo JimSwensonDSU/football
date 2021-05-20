@@ -11,6 +11,8 @@ Assemble using nasm https://www.nasm.us/
 
 The code uses no libc function and instead leverages Linux syscalls.
 
+![Example game play](football.gif)
+
 ## INSTRUCTIONS FOR DOCKER
 
 With Docker installed, you can build and run football without needing to
