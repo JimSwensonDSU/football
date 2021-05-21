@@ -3568,7 +3568,7 @@ hidecursor:
 ;
 ; void showcursor()
 ;
-; Hide the cursor
+; Show the cursor
 ;
 segment .data
 
