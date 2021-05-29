@@ -4610,6 +4610,8 @@ halftime_show_fmt	db	10, 10, 10, 10, 10
 			db	"     ( To skip the halftime show, hit "
 			db	KEY_QUIT, " )", 10, 0
 
+halftime_buf_fmt	db	"%s", 0
+
 %define	HALFTIME_PRINT_BUF	[ebp - 1000]
 
 halftime_show:
@@ -4675,8 +4677,9 @@ halftime_show:
 		rle_print:
 		lea	eax, HALFTIME_PRINT_BUF
 		push	eax
+		push	halftime_buf_fmt
 		call	printf
-		add	esp, 4
+		add	esp, 8
 
 		; Move edi to the next frame
 		inc	edi
