@@ -190,9 +190,6 @@ segment .data
 	fmts db "s = %s", 10, 0
 
 segment .bss
-	; print buffer for halftime show
-	halftime_print_buf	resb	1024
-
 	; save terminal/stdin settings
 	save_termios		resb	60
 	save_c_lflag		resb	4
@@ -4613,9 +4610,16 @@ halftime_show_fmt	db	10, 10, 10, 10, 10
 			db	"     ( To skip the halftime show, hit "
 			db	KEY_QUIT, " )", 10, 0
 
-halftime_show:
-	enter	0, 0
+%define	HALFTIME_PRINT_BUF	[ebp - 1000]
 
+halftime_show:
+	push	ebp
+	mov	ebp, esp
+
+	; Move esp to HALFTIME_PRINT_BUF
+	lea	esp, HALFTIME_PRINT_BUF
+
+	; save registers
 	push	eax
 	push	ebx
 	push	ecx
@@ -4632,7 +4636,7 @@ halftime_show:
 		call	homecursor
 
 		; Point esi to print buffer
-		mov	esi, halftime_print_buf
+		lea	esi, HALFTIME_PRINT_BUF
 		dec	edi
 		dec	esi
 
@@ -4669,7 +4673,8 @@ halftime_show:
 		jmp	rle_toploop
 
 		rle_print:
-		push	halftime_print_buf
+		lea	eax, HALFTIME_PRINT_BUF
+		push	eax
 		call	printf
 		add	esp, 4
 
@@ -4710,6 +4715,7 @@ halftime_show:
 
 	halftime_show_leave:
 
+	; restore registers
 	pop	esi
 	pop	edi
 	pop	ecx
@@ -4718,7 +4724,8 @@ halftime_show:
 
 	call	clearscreen
 
-	leave
+	mov	esp, ebp
+	pop	ebp
 	ret
 ;
 ;------------------------------------------------------------------------------
