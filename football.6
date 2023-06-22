@@ -81,7 +81,7 @@ Performs a punt or a field goal attempt, depending on field position.  Only avai
 
 .TP
 .B Enter
-Used to continue after each play.
+Used to continue after each play or when game is paused.
 
 .TP
 .B v
@@ -94,6 +94,10 @@ Toggle use of color.
 .TP
 .B 0\-5
 Change the skill level.  0 = easiest, 5 = hardest.
+
+.TP
+.B p
+Pause the game.  Only available during a running play.
 
 .TP
 .B Q
@@ -242,6 +246,8 @@ char - right
 .IP
 char - kick
 .IP
+char - pause
+.IP
 char - quit
 .IP
 char - debug
@@ -357,11 +363,13 @@ A simple example boardfile follows.  The trailing "." is shown only for ease of 
 .br
          Kick: @ (only on 4th down)                 .
 .br
+        Pause: @                                    .
+.br
          Quit: @                                    .
 .br
                                                     .
 .br
-     Hit Enter after each play                      .
+     Hit Enter after each play or when paused       .
 .br
      Hit @ to toggle debug display                  .
 .br
@@ -413,7 +421,7 @@ Number of "ticks" per quarter.  A "tick" is approximately 1 second.
 Number of digit markers required in the board file.
 
 .TP
-.BR BOARD_CHARS_REQUIRED " 10"
+.BR BOARD_CHARS_REQUIRED " 11"
 Number of char markers required in in the board file.
 
 .SH DEFENSE AI

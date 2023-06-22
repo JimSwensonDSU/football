@@ -61,6 +61,7 @@
 ;       char - down
 ;       char - right
 ;       char - kick
+;       char - pause
 ;       char - quit
 ;       char - debug
 ;
@@ -97,8 +98,9 @@
                                                                    
              Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT               
                  Kick: @ (only on 4th down)                        
+                Pause: @                                           
                  Quit: @                                           
                                                                    
-             Hit Enter after each play                             
+             Hit Enter after each play or when paused              
              Hit @ to toggle debug display                         
                                                                    

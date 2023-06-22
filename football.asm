@@ -122,7 +122,7 @@
 %define	MAX_FIELD_LENGTH	15	; max number of player positions along the length of the field
 %define	MAX_DEFENSE		11	; max number of defenders
 %define	BOARD_DIGITS_REQUIRED	13	; Number of marker_digit_N required
-%define	BOARD_CHARS_REQUIRED	10	; Number of marker_char_N required
+%define	BOARD_CHARS_REQUIRED	11	; Number of marker_char_N required
 
 %define	DEFAULT_SKILL_LEVEL	3
 
@@ -148,6 +148,7 @@
 %define	KEY_DEBUG	'v'	; toggle debug mode
 %define	KEY_COLOR	'c'	; toggle color mode
 %define KEY_CTRLC	0x03
+%define KEY_PAUSE	'p'
 
 ; splash message coloring indicators
 %define	SPLASH_GOOD	'G'
@@ -179,6 +180,7 @@ segment .data
 	msg_tackle		db	SPLASH_NEUTRAL,	"*** TACKLED ***", 0
 	msg_punt		db	SPLASH_NEUTRAL,	"*** PUNTED ***", 0
 	msg_fumble		db	SPLASH_BAD,	"!!! FUMBLED !!!", 0
+	msg_pause		db	SPLASH_NEUTRAL,	"PLAY PAUSED - Hit Enter", 0
 	msg_gameover		db	SPLASH_NEUTRAL,	"GAME OVER - Hit Enter or ", KEY_QUIT, 0
 	msg_abort		db			"CAUGHT CTRL-C.  GAME OVER", 0
 
@@ -225,6 +227,7 @@ segment .data
 			dd	KEY_CTRLC,	0,		check_ctrlc,		0,	0
 			dd	KEY_ENTER,	0,		check_enter,		0,	0
 			dd	KEY_KICK,	1,		check_kick,		0,	0
+			dd	KEY_PAUSE,	1,		check_pause,		0,	0
 			dd	0
 
 	input_table_rec_size	dd	20
@@ -390,6 +393,7 @@ segment .data
 	;       char - down
 	;       char - right
 	;       char - kick
+	;       char - pause
 	;       char - quit
 	;       char - debug
 	;
@@ -423,9 +427,10 @@ segment .data
 			db	"                                                    ", 10
 			db	"     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT        ", 10
 			db	"         Kick: @ (only on 4th down)                 ", 10
+			db	"        Pause: @                                    ", 10
 			db	"         Quit: @                                    ", 10
 			db	"                                                    ", 10
-			db	"     Hit Enter after each play                      ", 10
+			db	"     Hit Enter after each play or when paused       ", 10
 			db	"     Hit @ to toggle debug display                  ", 10
 			db	"                                                    ", 10
 			db	0
@@ -463,9 +468,10 @@ segment .data
 			db	"                                                    ", 10
 			db	"     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT        ", 10
 			db	"         Kick: @ (only on 4th down)                 ", 10
+			db	"        Pause: @                                    ", 10
 			db	"         Quit: @                                    ", 10
 			db	"                                                    ", 10
-			db	"     Hit Enter after each play                      ", 10
+			db	"     Hit Enter after each play or when paused       ", 10
 			db	"     Hit @ to toggle debug display                  ", 10
 			db	"                                                    ", 10
 			db	0
@@ -507,9 +513,10 @@ segment .data
 			db	"                                                                        ", 10
 			db	"     Movement: @=UP  @=LEFT  @=DOWN  @=RIGHT                            ", 10
 			db	"         Kick: @ (only on 4th down)                                     ", 10
+			db	"        Pause: @                                                        ", 10
 			db	"         Quit: @                                                        ", 10
 			db	"                                                                        ", 10
-			db	"     Hit Enter after each play                                          ", 10
+			db	"     Hit Enter after each play or when paused                           ", 10
 			db	"     Hit @ to toggle debug display                                      ", 10
 			db	"                                                                        ", 10
 			db	0
@@ -540,9 +547,10 @@ segment .data
 			db	"   Movement: @=UP    @=LEFT                         ", 10
 			db	"             @=DOWN  @=RIGHT                        ", 10
 			db	"       Kick: @ (only on 4th down)                   ", 10
+			db	"      Pause: @                                      ", 10
 			db	"       Quit: @                                      ", 10
 			db	"                                                    ", 10
-			db	"   Hit Enter after each play                        ", 10
+			db	"   Hit Enter after each play or when paused         ", 10
 			db	"   Hit @ to toggle debug display                    ", 10
 			db	"                                                    ", 10
 			db	0
@@ -2052,7 +2060,6 @@ process_input:
 		jmp	leave_process_input
 
 
-
 	; Check for a kick (punt or fieldgoal)
 	;
 	; - To allow, must be 4th down and no play running.
@@ -2077,6 +2084,24 @@ process_input:
 
 		try_field_goal:
 		mov	DWORD [fieldgoal], 1
+		jmp	leave_process_input
+
+
+	; Check for request to pause game
+	;
+	check_pause:
+		; Pause only when play running
+		cmp	DWORD [playrunning], 0
+		je	leave_process_input
+
+		mov	DWORD [gamepaused], 1
+		call	drawboard
+
+		push	msg_pause
+		call	drawsplash
+		add	esp, 4
+
+		call	wait_for_enter
 		jmp	leave_process_input
 
 
@@ -2848,6 +2873,7 @@ drawboard:
 	; Keys
 	push	KEY_DEBUG
 	push	KEY_QUIT
+	push	KEY_PAUSE
 	push	KEY_KICK
 	push	KEY_RIGHT
 	push	KEY_DOWN
