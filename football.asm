@@ -149,6 +149,7 @@
 %define	KEY_COLOR	'c'	; toggle color mode
 %define KEY_CTRLC	0x03
 %define KEY_PAUSE	'p'
+%define KEY_BERZERK	'b'	; toggle berzerk mode
 
 ; splash message coloring indicators
 %define	SPLASH_GOOD	'G'
@@ -228,6 +229,7 @@ segment .data
 			dd	KEY_ENTER,	0,		check_enter,		0,	0
 			dd	KEY_KICK,	1,		check_kick,		0,	0
 			dd	KEY_PAUSE,	1,		check_pause,		0,	0
+			dd	KEY_BERZERK,	0,		check_berzerk,		0,	0
 			dd	0
 
 	input_table_rec_size	dd	20
@@ -616,6 +618,7 @@ segment .data
 			db	"          fumble: %d      3 - Semi-pro              ", 10
 			db	"      skilllevel: %d      4 - NFL                   ", 10
 			db	"        color_on: %d      5 - Bo Jackson level      ", 10
+			db	"         berzerk: %d                                ", 10
 			db	"                                                    ", 10
 			db	"        fieldpos: %d%d    Jim Swenson                ", 10
 			db	" lineofscrimmage: %d%d    Jim.Swenson@trojans.dsu.edu", 10
@@ -1148,6 +1151,7 @@ segment .bss
 
 	gamepaused	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
+	berzerk		resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
 	fumble		resd	1	; 1 = yes, 0 = no
 	punt		resd	1	; 1 = yes, 0 = no
@@ -1447,12 +1451,13 @@ init_game:
 	mov	DWORD [timer_counter], TIMER_COUNTER
 	call	reset_defense_counter
 
-	; skilllevel, color_on, and debug_on are carried over
+	; skilllevel, color_on, debug_on, and berzerk are carried over
 	cmp	DWORD [ebp + 8], 1	; initialize_all
 	jne	init_game_leave
 	mov	DWORD [skilllevel], DEFAULT_SKILL_LEVEL
 	mov	DWORD [color_on], 1
 	mov	DWORD [debug_on], 0
+	mov	DWORD [berzerk], 0
 
 	init_game_leave:
 	call	init_player_positions
@@ -2105,6 +2110,17 @@ process_input:
 		jmp	leave_process_input
 
 
+	;
+	; Checking for berzerk toggle
+	;
+	check_berzerk:
+		mov	eax, 1
+		sub	eax, DWORD [berzerk]
+		mov	DWORD [berzerk], eax
+		call	drawdebug
+		jmp	leave_process_input
+
+
 	leave_process_input:
 
 	pop	ecx
@@ -2380,6 +2396,67 @@ move_offense:
 
 ;------------------------------------------------------------------------------
 ;
+; int pick_defender()
+;
+; Pick defender to move
+;
+; Return: index of the defender to move
+;
+pick_defender:
+	enter	8, 0
+
+	push	ebx
+	push	ecx
+
+	; Local vars
+	; [ebp - 4]   : shortest distance
+	; [ebp - 8]   : index of closest defender
+
+	cmp	DWORD [berzerk], 0
+	je	pick_from_all
+
+	; find closest defender manhattan distance
+	mov	DWORD [ebp - 4], 1000
+	mov	ecx, DWORD [defense_num]
+	closest_defender_loop:
+		mov	eax, DWORD [offense]	; offenseX
+		sub	eax, DWORD [defense + 8*ecx - 8]	; defenseX
+		push	eax
+		call	absval
+		add	esp, 4
+		mov	ebx, eax
+		mov	eax, DWORD [offense + 4]	; offenseY
+		sub	eax, DWORD [defense + 8*ecx - 4]	; defenseY
+		push	eax
+		call	absval
+		add	esp, 4
+		add	eax, ebx
+		cmp	eax, DWORD [ebp - 4]
+		jge	closest_defender_loop_next
+		mov	DWORD [ebp - 4], eax
+		mov	DWORD [ebp - 8], ecx
+		closest_defender_loop_next:
+		loop	closest_defender_loop
+
+	mov	eax, DWORD [ebp - 8]
+	dec	eax
+	jmp	leave_pick_defender
+
+	pick_from_all:
+	push	DWORD [defense_num]
+	call	random
+	add	esp, 4
+
+	leave_pick_defender:
+	pop	ecx
+	pop	ebx
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
 ; void move_defense()
 ;
 ; Move defense players.
@@ -2417,9 +2494,7 @@ move_defense:
 
 
 	; Randomly pick one defender
-	push	DWORD [defense_num]
-	call	random
-	add	esp, 4
+	call	pick_defender
 	mov	DWORD [ebp - 12], eax
 
 	; save that defender's current position
@@ -3317,6 +3392,7 @@ drawdebug:
 	div	ecx
 	push	edx
 
+	push	DWORD [berzerk]
 	push	DWORD [color_on]
 	push	DWORD [skilllevel]
 	push	DWORD [fumble]
@@ -4630,6 +4706,32 @@ usleep:
 	int	0x80
 
 	pop	ecx
+	pop	ebx
+
+	leave
+	ret
+;
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+;
+; int absval(int x)
+;
+; Return: Absolute value of x
+;
+absval:
+	enter	0, 0
+
+	push	ebx
+
+	; Arguments
+	; [ebp + 8] : x
+
+	mov	eax, DWORD [ebp + 8]
+	mov	ebx, eax
+	neg	eax
+	cmovl	eax, ebx
+
 	pop	ebx
 
 	leave
