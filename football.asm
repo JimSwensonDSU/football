@@ -1161,6 +1161,9 @@ segment .bss
 	offense		resd	2		; X, Y
 	defense		resd	2 * MAX_DEFENSE	; N sets of X,Y
 
+	; work area for finding closest defender
+	closest_defense	resd	4 * MAX_DEFENSE
+
 	; Offset to each player field position
 	playpos		resd	MAX_FIELD_LENGTH * MAX_FIELD_WIDTH
 	playpos_num	resd	1
@@ -2403,21 +2406,22 @@ move_offense:
 ; Return: index of the defender to move
 ;
 pick_defender:
-	enter	8, 0
+	enter	0, 0
 
 	push	ebx
 	push	ecx
-
-	; Local vars
-	; [ebp - 4]   : shortest distance
-	; [ebp - 8]   : index of closest defender
+	push	edx
+	push	edi
 
 	cmp	DWORD [berzerk_on], 0
 	je	pick_from_all
 
 	; find closest defender manhattan distance
-	mov	DWORD [ebp - 4], 1000
+
+	mov	edx, 10000
+	mov	edi, 0
 	mov	ecx, DWORD [defense_num]
+
 	closest_defender_loop:
 		mov	eax, DWORD [offense]	; offenseX
 		sub	eax, DWORD [defense + 8*ecx - 8]	; defenseX
@@ -2431,14 +2435,25 @@ pick_defender:
 		call	absval
 		add	esp, 4
 		add	eax, ebx
-		cmp	eax, DWORD [ebp - 4]
-		jge	closest_defender_loop_next
-		mov	DWORD [ebp - 4], eax
-		mov	DWORD [ebp - 8], ecx
+		cmp	eax, edx
+		jg	closest_defender_loop_next
+		je	closest_defender_loop_add
+
+		; new closest defender
+		mov	edx, eax
+		mov	edi, 0
+
+		closest_defender_loop_add:
+		mov	DWORD [closest_defense + 4 * edi], ecx
+		inc	edi
+
 		closest_defender_loop_next:
 		loop	closest_defender_loop
 
-	mov	eax, DWORD [ebp - 8]
+	push	edi
+	call	random
+	add	esp, 4
+	mov	eax, DWORD [closest_defense + 4 * eax]
 	dec	eax
 	jmp	leave_pick_defender
 
@@ -2448,6 +2463,8 @@ pick_defender:
 	add	esp, 4
 
 	leave_pick_defender:
+	pop	edi
+	pop	edx
 	pop	ecx
 	pop	ebx
 	leave
