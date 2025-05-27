@@ -618,7 +618,7 @@ segment .data
 			db	"          fumble: %d      3 - Semi-pro              ", 10
 			db	"      skilllevel: %d      4 - NFL                   ", 10
 			db	"        color_on: %d      5 - Bo Jackson level      ", 10
-			db	"         berzerk: %d                                ", 10
+			db	"      berzerk_on: %d     Hit %c to toggle berzerk    ", 10
 			db	"                                                    ", 10
 			db	"        fieldpos: %d%d    Jim Swenson                ", 10
 			db	" lineofscrimmage: %d%d    Jim.Swenson@trojans.dsu.edu", 10
@@ -1151,7 +1151,7 @@ segment .bss
 
 	gamepaused	resd	1	; 1 = yes, 0 = no
 	playrunning	resd	1	; 1 = yes, 0 = no
-	berzerk		resd	1	; 1 = yes, 0 = no
+	berzerk_on	resd	1	; 1 = yes, 0 = no
 	tackle		resd	1	; 1 = yes, 0 = no
 	fumble		resd	1	; 1 = yes, 0 = no
 	punt		resd	1	; 1 = yes, 0 = no
@@ -1451,13 +1451,13 @@ init_game:
 	mov	DWORD [timer_counter], TIMER_COUNTER
 	call	reset_defense_counter
 
-	; skilllevel, color_on, debug_on, and berzerk are carried over
+	; skilllevel, color_on, debug_on, and berzerk_on are carried over
 	cmp	DWORD [ebp + 8], 1	; initialize_all
 	jne	init_game_leave
 	mov	DWORD [skilllevel], DEFAULT_SKILL_LEVEL
 	mov	DWORD [color_on], 1
 	mov	DWORD [debug_on], 0
-	mov	DWORD [berzerk], 0
+	mov	DWORD [berzerk_on], 0
 
 	init_game_leave:
 	call	init_player_positions
@@ -2115,8 +2115,8 @@ process_input:
 	;
 	check_berzerk:
 		mov	eax, 1
-		sub	eax, DWORD [berzerk]
-		mov	DWORD [berzerk], eax
+		sub	eax, DWORD [berzerk_on]
+		mov	DWORD [berzerk_on], eax
 		call	drawdebug
 		jmp	leave_process_input
 
@@ -2412,7 +2412,7 @@ pick_defender:
 	; [ebp - 4]   : shortest distance
 	; [ebp - 8]   : index of closest defender
 
-	cmp	DWORD [berzerk], 0
+	cmp	DWORD [berzerk_on], 0
 	je	pick_from_all
 
 	; find closest defender manhattan distance
@@ -3392,7 +3392,8 @@ drawdebug:
 	div	ecx
 	push	edx
 
-	push	DWORD [berzerk]
+	push	KEY_BERZERK
+	push	DWORD [berzerk_on]
 	push	DWORD [color_on]
 	push	DWORD [skilllevel]
 	push	DWORD [fumble]
